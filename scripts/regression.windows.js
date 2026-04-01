@@ -7,6 +7,7 @@ const TEST_DATA_DIR = path.join(ROOT, "tmp", "regression-data");
 process.env.CODEX_CONTROL_DATA_DIR = TEST_DATA_DIR;
 const { startServer, stopServer } = require("../src/server");
 const { SCHEMA_VERSION } = require("../src/lib/constants");
+const { createGitFixtureRepo } = require("./test-helpers/git-fixture");
 const REGISTRY_FILE = path.join(TEST_DATA_DIR, "project-registry.json");
 const WORKBENCH_FILE = path.join(TEST_DATA_DIR, "intake-workbench.json");
 const CACHE_DIR = path.join(TEST_DATA_DIR, "cache");
@@ -49,7 +50,7 @@ async function main() {
 
 async function testValidWindowsGitRepo(createdProjectIds) {
   const repoPath = path.join(FIXTURE_ROOT, "valid-git-repo");
-  await createFakeGitRepo(repoPath);
+  await createGitFixtureRepo(repoPath);
 
   const payload = await requestJson("/api/projects", {
     method: "POST",
@@ -116,7 +117,7 @@ async function testNonGitDirectoryFailure() {
 
 async function testRefreshDoesNotWriteRepo(createdProjectIds) {
   const repoPath = path.join(FIXTURE_ROOT, "readonly-refresh-repo");
-  await createFakeGitRepo(repoPath);
+  await createGitFixtureRepo(repoPath);
 
   const created = await requestJson("/api/projects", {
     method: "POST",
@@ -167,12 +168,16 @@ async function testRefreshDoesNotWriteRepo(createdProjectIds) {
   assert.ok(refreshed.detail.visualizations.byId.project_panorama.coverageLevel, "图应附带 coverageLevel。");
   assert.ok(refreshed.detail.visualizations.byId.project_panorama.freshness, "图应附带 freshness。");
   assert.ok(refreshed.detail.visualizations.byId.project_panorama.sourceMix, "图应附带 sourceMix。");
+  assert.ok(refreshed.detail.repoFacts.repoChangeFallback, "refresh snapshot should include repo change fallback facts");
+  assert.equal(typeof refreshed.detail.repoFacts.repoChangeFallback.workingTreeDirty, "boolean", "repo change fallback should expose dirtiness as a boolean");
+  assert.ok(Array.isArray(refreshed.detail.repoFacts.repoChangeFallback.changedFiles), "repo change fallback should expose changed file summaries");
+  assert.ok(refreshed.detail.repoFacts.repoChangeFallback.latestCommitSummary, "refresh snapshot should include latest commit summary");
   assert.ok(refreshed.detail.entityRefs.decisions, "decision_log 联动字段应存在。");
 }
 
 async function testWorkbenchFlows(createdProjectIds) {
   const repoPath = path.join(FIXTURE_ROOT, "workbench-repo");
-  await createFakeGitRepo(repoPath);
+  await createGitFixtureRepo(repoPath);
 
   const draftSaved = await requestJson("/api/workbench/new-project/draft", {
     method: "POST",
@@ -246,7 +251,7 @@ async function testWorkbenchFlows(createdProjectIds) {
 
 async function testLegacyModuleBlueprintSchema(createdProjectIds) {
   const repoPath = path.join(FIXTURE_ROOT, "legacy-module-blueprint-repo");
-  await createFakeGitRepo(repoPath);
+  await createGitFixtureRepo(repoPath);
 
   const created = await requestJson("/api/projects", {
     method: "POST",
@@ -374,7 +379,7 @@ async function testLegacyModuleBlueprintSchema(createdProjectIds) {
 
 async function testRemoveProjectCleansControlFiles() {
   const repoPath = path.join(FIXTURE_ROOT, "remove-project-repo");
-  await createFakeGitRepo(repoPath);
+  await createGitFixtureRepo(repoPath);
   const preservedAgentsText = [
     "# Existing Rules",
     "",
@@ -427,10 +432,6 @@ async function testRemoveProjectCleansControlFiles() {
     removed.removed.removedRepoArtifacts.some((item) => item.action === "control_dir_deleted"),
     "response should report control dir cleanup"
   );
-}
-
-async function createFakeGitRepo(repoPath) {
-  await fs.mkdir(path.join(repoPath, ".git"), { recursive: true });
 }
 
 async function requestJson(route, options = {}) {

@@ -48,6 +48,9 @@ const {
   getRepoLocalSkillPaths
 } = require("./repo-skill-templates");
 const {
+  collectRepoChangeFallback
+} = require("./repo-change-fallback");
+const {
   ensureOverviewSourceFiles,
   previewOverviewSourceFiles,
   readOverviewSources,
@@ -124,7 +127,7 @@ async function readProjectSnapshot(projectRecord, options = {}) {
   }
 
   const normalizedState = normalizeProjectState(rawProjectState || {}, projectRecord.name);
-  const overviewSources = await readOverviewSources(projectRecord, normalizedState);
+  const overviewSources = await readOverviewSources(projectRecord, normalizedState, repoFacts);
   conflicts.push(...overviewSources.conflicts);
 
   if (
@@ -281,6 +284,7 @@ async function collectRepoFacts(projectRoot) {
   const superpowersRootPath = path.join(projectRoot, DOCS_DIR_NAME, SUPERPOWERS_DIR_NAME);
   const superpowersSpecsPath = path.join(superpowersRootPath, SUPERPOWERS_SPECS_DIR_NAME);
   const superpowersPlansPath = path.join(superpowersRootPath, SUPERPOWERS_PLANS_DIR_NAME);
+  const repoLocalSkillPaths = buildRepoLocalSkillPathMap(projectRoot);
 
   const [
     agentsText,
@@ -298,7 +302,11 @@ async function collectRepoFacts(projectRoot) {
     legacyCurrentStateMdStat,
     superpowersRootStat,
     superpowersSpecsStat,
-    superpowersPlansStat
+    superpowersPlansStat,
+    handoffSkillStat,
+    closeoutSkillStat,
+    recoverySkillStat,
+    repoChangeFallback
   ] = await Promise.all([
     readTextIfExists(agentsPath),
     safeStat(agentsPath),
@@ -315,7 +323,11 @@ async function collectRepoFacts(projectRoot) {
     safeStat(legacyCurrentStateMdPath),
     safeStat(superpowersRootPath),
     safeStat(superpowersSpecsPath),
-    safeStat(superpowersPlansPath)
+    safeStat(superpowersPlansPath),
+    safeStat(repoLocalSkillPaths.handoff.path),
+    safeStat(repoLocalSkillPaths.closeout.path),
+    safeStat(repoLocalSkillPaths.recovery.path),
+    collectRepoChangeFallback(projectRoot)
   ]);
 
   const historyEntries = await readHistoryEntries(projectStatePath);
@@ -386,11 +398,44 @@ async function collectRepoFacts(projectRoot) {
       currentState: buildFileFact(legacyCurrentStatePath, legacyCurrentStateStat),
       currentStateMarkdown: buildFileFact(legacyCurrentStateMdPath, legacyCurrentStateMdStat)
     },
+    repoLocalSkills: {
+      handoff: buildRepoLocalSkillFact(repoLocalSkillPaths.handoff, handoffSkillStat),
+      closeout: buildRepoLocalSkillFact(repoLocalSkillPaths.closeout, closeoutSkillStat),
+      recovery: buildRepoLocalSkillFact(repoLocalSkillPaths.recovery, recoverySkillStat)
+    },
+    repoChangeFallback,
     verifiedConsistency: null,
     recentChangeSummaries,
     runFiles,
     watchedTargets,
     latestSourceUpdateAt
+  };
+}
+
+function buildRepoLocalSkillPathMap(projectRoot) {
+  const entries = getRepoLocalSkillPaths(projectRoot);
+  return {
+    handoff: buildRepoLocalSkillPathEntry(entries, projectRoot, "codex-project-handoff"),
+    closeout: buildRepoLocalSkillPathEntry(entries, projectRoot, "codex-task-closeout-writeback"),
+    recovery: buildRepoLocalSkillPathEntry(entries, projectRoot, "codex-project-recovery-scan")
+  };
+}
+
+function buildRepoLocalSkillPathEntry(entries, projectRoot, skillName) {
+  const match = entries.find((item) => item.name === skillName);
+  return {
+    name: skillName,
+    path: match ? match.rootDir : path.join(projectRoot, ".agents", "skills", skillName),
+    files: match ? match.files : []
+  };
+}
+
+function buildRepoLocalSkillFact(entry, stat) {
+  return {
+    name: entry.name,
+    path: entry.path,
+    exists: !!stat,
+    files: entry.files
   };
 }
 

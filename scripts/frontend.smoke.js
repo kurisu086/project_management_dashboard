@@ -6,6 +6,7 @@ const ROOT = path.resolve(__dirname, "..");
 const TEST_DATA_DIR = path.join(ROOT, "tmp", "frontend-smoke-data");
 process.env.CODEX_CONTROL_DATA_DIR = TEST_DATA_DIR;
 const { startServer, stopServer } = require("../src/server");
+const { createGitFixtureRepo } = require("./test-helpers/git-fixture");
 const REGISTRY_FILE = path.join(TEST_DATA_DIR, "project-registry.json");
 const CACHE_DIR = path.join(TEST_DATA_DIR, "cache");
 const FIXTURE_ROOT = path.join(ROOT, "tmp", "frontend-smoke-fixtures");
@@ -49,7 +50,7 @@ async function main() {
     );
 
     const repoPath = path.join(FIXTURE_ROOT, "new-project-smoke-repo");
-    await createFakeGitRepo(repoPath);
+    await createGitFixtureRepo(repoPath);
     const newProjectPreview = await requestJson(serverUrl, "/api/workbench/new-project/writeback/preview", {
       method: "POST",
       body: JSON.stringify({
@@ -92,7 +93,7 @@ async function main() {
     );
 
     const recoveryRepoPath = path.join(FIXTURE_ROOT, "recovery-smoke-repo");
-    await createFakeGitRepo(recoveryRepoPath);
+    await createGitFixtureRepo(recoveryRepoPath);
     const recovery = await requestJson(serverUrl, "/api/workbench/recovery/attach", {
       method: "POST",
       body: JSON.stringify({
@@ -129,11 +130,6 @@ async function main() {
     await fs.rm(FIXTURE_ROOT, { recursive: true, force: true });
     await fs.rm(TEST_DATA_DIR, { recursive: true, force: true });
   }
-}
-
-async function createFakeGitRepo(repoPath) {
-  await fs.mkdir(path.join(repoPath, ".git"), { recursive: true });
-  await fs.writeFile(path.join(repoPath, "README.md"), "# Smoke Repo\n", "utf8");
 }
 
 async function requestJson(serverUrl, route, options = {}) {
