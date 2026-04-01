@@ -22,6 +22,9 @@ const {
   safeStat,
   writeJsonAtomic
 } = require("./fs-utils");
+const {
+  buildSuperpowersWorkflowState
+} = require("./superpowers-workflow-state");
 
 const FIELD_GROUPS = {
   FACT: "fact",
@@ -148,7 +151,7 @@ async function applyOverviewPreview(preview, projectRecord) {
   };
 }
 
-async function readOverviewSources(projectRecord, projectState) {
+async function readOverviewSources(projectRecord, projectState, repoFacts = null) {
   const controlDir = path.join(projectRecord.rootPath, CONTROL_DIR_NAME);
   const filePaths = {
     projectBrief: path.join(controlDir, PROJECT_BRIEF_FILE_NAME),
@@ -178,6 +181,11 @@ async function readOverviewSources(projectRecord, projectState) {
   const repoDerived = scanResult.repoDerived;
   const superpowers = scanResult.superpowers;
   const conflicts = [];
+  const workflow = buildSuperpowersWorkflowState({
+    superpowers,
+    repoFacts,
+    projectState
+  });
 
   const projectBrief = mergeProjectBrief(sourceProjectBrief, repoDerived.projectBrief, superpowers.derived.projectBrief, conflicts);
   const moduleMap = mergeModuleMap(sourceModuleMap, repoDerived.moduleMap, superpowers.derived.moduleMap);
@@ -185,6 +193,20 @@ async function readOverviewSources(projectRecord, projectState) {
   const isGameProject = detectGameFlag(projectBrief, repoDerived, superpowers);
   const gameDesign = mergeGameDesign(sourceGameDesign, repoDerived.gameDesign, superpowers.derived.gameDesign, isGameProject, conflicts);
   const versionState = mergeVersionState(sourceVersionState, projectState, repoDerived.versionState, superpowers.derived.versionState, moduleMap, conflicts);
+  const superpowersWithWorkflow = {
+    ...superpowers,
+    workflow
+  };
+
+  if (workflow.hasUnwrittenRepoChanges === true) {
+    conflicts.push({
+      level: "medium",
+      type: "superpowers_writeback_drift",
+      message: workflow.writebackDrift === "missing_formal_writeback"
+        ? "Repo-visible changes were detected, but no formal Superpowers closeout run was found."
+        : "Repo-visible changes are newer than the latest formal Superpowers closeout run."
+    });
+  }
 
   return {
     files: await buildSourceFileFacts(filePaths),
@@ -196,7 +218,7 @@ async function readOverviewSources(projectRecord, projectState) {
       "5. 用户手工补充信息"
     ],
     repoDerived,
-    superpowers,
+    superpowers: superpowersWithWorkflow,
     projectBrief,
     moduleMap,
     techStack,
