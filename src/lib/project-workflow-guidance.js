@@ -103,7 +103,7 @@ function isBlocked(currentAction, conflicts, pendingDecisions) {
 function needsCloseout(superpowersWorkflow) {
   return superpowersWorkflow.hasUnwrittenRepoChanges
     || superpowersWorkflow.workflowState === "repo_changed_without_closeout"
-    || superpowersWorkflow.writebackDrift !== "not_applicable";
+    || ["missing_formal_writeback", "repo_ahead_of_writeback"].includes(superpowersWorkflow.writebackDrift);
 }
 
 function needsRecovery(currentAction) {

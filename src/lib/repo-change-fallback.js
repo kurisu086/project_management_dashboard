@@ -68,7 +68,7 @@ function readLatestCommit(projectRoot) {
 }
 
 async function collectChangedFiles(projectRoot) {
-  const output = runGit(["status", "--porcelain=v1", "--untracked-files=normal"], projectRoot);
+  const output = runGit(["status", "--porcelain=v1", "--untracked-files=all"], projectRoot);
   if (!output) {
     return [];
   }
@@ -80,7 +80,9 @@ async function collectChangedFiles(projectRoot) {
       entries.push(entry);
     }
   }
-  return entries.filter(Boolean).sort((left, right) => left.path.localeCompare(right.path));
+  return entries
+    .filter((entry) => entry && !shouldIgnoreRepoVisiblePath(entry.path))
+    .sort((left, right) => left.path.localeCompare(right.path));
 }
 
 async function parseStatusLine(projectRoot, line) {
@@ -158,6 +160,19 @@ function formatGitFailure(result) {
     .filter(Boolean);
 
   return details.join("\n") || "Unknown git failure.";
+}
+
+function shouldIgnoreRepoVisiblePath(filePath) {
+  const normalized = String(filePath || "").trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!normalized) {
+    return true;
+  }
+
+  return normalized === "AGENTS.md"
+    || normalized === ".gitignore"
+    || normalized.startsWith(".codex-control/")
+    || normalized.startsWith(".agents/skills/")
+    || normalized.startsWith("docs/superpowers/");
 }
 
 async function fileExists(targetPath) {

@@ -31,7 +31,7 @@ async function main() {
     await testNonGitDirectoryFailure();
     await testRefreshDoesNotWriteRepo(createdProjectIds);
     await testSuperpowersWritebackDrift(createdProjectIds);
-    await testSuperpowersDocsAndPlanNoDriftGuidance(createdProjectIds);
+    await testSuperpowersDocsAndPlanRecoveryGuidance(createdProjectIds);
     await testSuperpowersOnboardingLifecycle(createdProjectIds);
     await testSuperpowersRemovalPreservesUserDocs(createdProjectIds);
     await testLegacyModuleBlueprintSchema(createdProjectIds);
@@ -254,7 +254,7 @@ async function testSuperpowersWritebackDrift(createdProjectIds) {
   assert.equal(refreshed.detail.views.recentChanges.entries[0].type, "repo_change_inferred");
 }
 
-async function testSuperpowersDocsAndPlanNoDriftGuidance(createdProjectIds) {
+async function testSuperpowersDocsAndPlanRecoveryGuidance(createdProjectIds) {
   const repoPath = path.join(FIXTURE_ROOT, "superpowers-handoff-repo");
   await createGitFixtureRepo(repoPath, {
     "README.md": "# Superpowers Handoff Repo\n",
@@ -280,15 +280,15 @@ async function testSuperpowersDocsAndPlanNoDriftGuidance(createdProjectIds) {
     method: "POST"
   });
 
-  assert.equal(refreshed.summary.workflowStage, "handoff_needed");
-  assert.equal(refreshed.summary.recommendedNextAction, "prepare the handoff prompt");
-  assert.equal(refreshed.summary.recommendedNextSkill, "codex-project-handoff");
-  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.workflowStage, "handoff_needed");
-  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextAction, "prepare the handoff prompt");
-  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextSkill, "codex-project-handoff");
-  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.workflowStage, "handoff_needed");
-  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextAction, "prepare the handoff prompt");
-  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextSkill, "codex-project-handoff");
+  assert.equal(refreshed.summary.workflowStage, "recovery_needed");
+  assert.equal(refreshed.summary.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.summary.recommendedNextSkill, "codex-project-recovery-scan");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.workflowStage, "recovery_needed");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextSkill, "codex-project-recovery-scan");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.workflowStage, "recovery_needed");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextSkill, "codex-project-recovery-scan");
 }
 
 async function testSuperpowersOnboardingLifecycle(createdProjectIds) {

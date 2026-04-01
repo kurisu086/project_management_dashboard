@@ -22,10 +22,21 @@ const {
 const {
   appendSuperpowersMarkdownSection,
   buildSuperpowersInstructionGuidance,
-  buildSuperpowersPendingReviewItems,
   buildSuperpowersRecentEntries,
   buildSuperpowersSummaryFields
 } = require("./state-generator-superpowers");
+const {
+  buildDecisionImpactRows,
+  collectPendingDecisions
+} = require("./state-generator-instruction-center");
+const {
+  buildWorkflowGuidanceState,
+  buildWorkflowOnboardingView,
+  withWorkflowGuidanceInstructionCenter
+} = require("./state-generator-workflow-guidance");
+const {
+  buildPendingReviewModel
+} = require("./state-generator-pending-review");
 
 function buildDefaultProjectState(displayName) {
   const now = new Date().toISOString();
@@ -160,9 +171,60 @@ function buildCurrentState(projectRecord, projectState, repoFacts, conflicts, ov
     buildRecentChangeSummaries(projectState, repoFacts),
     repoFacts
   );
-  const summary = buildSummary(projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries);
+  const mergedRisks = mergeRisks(overviewSources.versionState.keyRisks, projectState.status.riskFlags);
+  const basePendingReview = buildPendingReviewModel({
+    conflicts,
+    currentSliceModule: overviewSources.versionState.currentSliceModule,
+    mergedRisks,
+    needsConfirmation: overviewSources.needsConfirmation,
+    overviewSources,
+    verificationMatrix: overviewSources.versionState.verificationMatrix
+  });
+  const summary = buildSummary(projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, basePendingReview);
+  const baseInstructionCenter = buildInstructionCenter(projectState, overviewSources, conflicts, summary);
+  const workflowGuidanceState = buildWorkflowGuidanceState(
+    projectRecord,
+    overviewSources,
+    conflicts,
+    summary,
+    baseInstructionCenter
+  );
+  const pendingReview = buildPendingReviewModel({
+    conflicts,
+    currentSliceModule: overviewSources.versionState.currentSliceModule,
+    mergedRisks,
+    needsConfirmation: overviewSources.needsConfirmation,
+    overviewSources,
+    verificationMatrix: overviewSources.versionState.verificationMatrix,
+    workflowGuidance: workflowGuidanceState.guidance
+  });
+  const instructionCenter = withWorkflowGuidanceInstructionCenter(
+    baseInstructionCenter,
+    workflowGuidanceState.guidance
+  );
+  const onboarding = buildWorkflowOnboardingView(
+    projectRecord,
+    buildOnboardingView(projectRecord),
+    workflowGuidanceState.guidance
+  );
+  Object.assign(summary, workflowGuidanceState.summaryFields, {
+    sourceConflictCount: pendingReview.conflictCount,
+    pendingReviewCount: pendingReview.count
+  });
   const cachePaths = buildCachePaths(projectRecord.id);
-  const detail = buildDetail(projectRecord, projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, cachePaths, summary);
+  const detail = buildDetail(
+    projectRecord,
+    projectState,
+    repoFacts,
+    conflicts,
+    overviewSources,
+    recentChangeSummaries,
+    cachePaths,
+    summary,
+    pendingReview,
+    instructionCenter,
+    onboarding
+  );
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -189,7 +251,7 @@ function buildRecentChangeSummaries(projectState, repoFacts) {
     : (repoFacts.recentChangeSummaries || []);
 }
 
-function buildSummary(projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries) {
+function buildSummary(projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, pendingReview) {
   const projectBrief = overviewSources.projectBrief;
   const versionState = overviewSources.versionState;
   const moduleMap = overviewSources.moduleMap;
@@ -197,7 +259,6 @@ function buildSummary(projectState, repoFacts, conflicts, overviewSources, recen
   const gameDesign = overviewSources.gameDesign;
   const keyRisk = pickPrimaryRisk(versionState.keyRisks, projectState.status.riskFlags);
   const currentAction = deriveCurrentActionAnalysis(projectState, overviewSources, conflicts);
-  const pendingReview = buildPendingReviewModel(projectState, overviewSources, conflicts);
   const superpowersFields = buildSuperpowersSummaryFields(overviewSources);
 
   return {
@@ -236,12 +297,23 @@ function buildSummary(projectState, repoFacts, conflicts, overviewSources, recen
   };
 }
 
-function buildDetail(projectRecord, projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, cachePaths, summary) {
+function buildDetail(
+  projectRecord,
+  projectState,
+  repoFacts,
+  conflicts,
+  overviewSources,
+  recentChangeSummaries,
+  cachePaths,
+  summary,
+  pendingReview,
+  instructionCenter,
+  onboarding
+) {
   const navigation = buildNavigation(overviewSources);
   const visualizations = buildVisualizations(projectRecord, projectState, overviewSources, recentChangeSummaries, conflicts, summary);
   const versionRef = buildVersionRef(overviewSources.versionState);
   const sliceRef = buildSliceRef(overviewSources.versionState);
-  const pendingReview = buildPendingReviewModel(projectState, overviewSources, conflicts);
   return {
     baseline: {
       projectBrief: overviewSources.projectBrief,
@@ -309,7 +381,20 @@ function buildDetail(projectRecord, projectState, repoFacts, conflicts, overview
     },
     visualizations,
     navigation,
-    views: buildViews(projectRecord, projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, cachePaths, summary, visualizations),
+    views: buildViews(
+      projectRecord,
+      projectState,
+      repoFacts,
+      conflicts,
+      overviewSources,
+      recentChangeSummaries,
+      cachePaths,
+      summary,
+      visualizations,
+      pendingReview,
+      instructionCenter,
+      onboarding
+    ),
     sourceMarkers: buildSourceMarkers(projectRecord, cachePaths, overviewSources),
     sourcePriority: overviewSources.sourcePriority,
     repoFacts,
@@ -383,13 +468,25 @@ function buildNavigation(overviewSources) {
   ];
 }
 
-function buildViews(projectRecord, projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, cachePaths, summary, visualizations) {
+function buildViews(
+  projectRecord,
+  projectState,
+  repoFacts,
+  conflicts,
+  overviewSources,
+  recentChangeSummaries,
+  cachePaths,
+  summary,
+  visualizations,
+  pendingReview,
+  instructionCenter,
+  onboarding
+) {
   const projectBrief = overviewSources.projectBrief;
   const versionState = overviewSources.versionState;
   const moduleMap = overviewSources.moduleMap;
   const techStack = overviewSources.techStack;
   const gameDesign = overviewSources.gameDesign;
-  const pendingReview = buildPendingReviewModel(projectState, overviewSources, conflicts);
 
   return {
     overview: {
@@ -572,7 +669,7 @@ function buildViews(projectRecord, projectState, repoFacts, conflicts, overviewS
         "Docs / code / tests consistency is declared unless explicitly verified."
       ]
     },
-    instructionCenter: buildInstructionCenter(projectState, overviewSources, conflicts, summary),
+    instructionCenter,
     deliverables: {
       layer: "execution-evidence",
       title: "固定交付 10 项",
@@ -607,7 +704,7 @@ function buildViews(projectRecord, projectState, repoFacts, conflicts, overviewS
         playable: overviewSources.gameDesign.currentPlayableState.value
       }
     },
-    onboarding: buildOnboardingView(projectRecord)
+    onboarding
   };
 }
 
@@ -681,23 +778,6 @@ function buildActionBoundaryModel() {
       trigger: "automatic_aggregation"
     }
   ];
-}
-
-function collectPendingDecisions(decisionLog) {
-  return (decisionLog?.decisions || []).filter((item) => {
-    const status = normalizeValue(item.status);
-    return ["pending", "open", "needs_decision", "unresolved"].includes(status);
-  });
-}
-
-function buildDecisionImpactRows(decisionLog) {
-  return (decisionLog?.decisions || []).map((item) => ({
-    title: item.title,
-    status: item.status,
-    versions: item.related_versions || [],
-    modules: item.related_modules || [],
-    risks: item.related_risks || []
-  }));
 }
 
 function deriveCurrentActionAnalysis(projectState, overviewSources, conflicts) {
@@ -1901,173 +1981,6 @@ function collectUnknownFields(overviewSources) {
   return fields;
 }
 
-function buildPendingReviewModel(projectState, overviewSources, conflicts) {
-  const userItems = [];
-  const cleanupItems = [];
-  const conflictItems = [];
-  const auditItems = [];
-
-  const addItem = (bucket, id, label, detail, viewId, severity = "medium") => {
-    if (!label || bucket.some((item) => item.id === id)) {
-      return;
-    }
-    bucket.push({ id, label, detail, viewId, severity });
-  };
-
-  uniqueStrings(overviewSources.needsConfirmation).forEach((item, index) => {
-    addItem(
-      userItems,
-      `needs-confirmation-${index + 1}`,
-      item,
-      "This still needs user confirmation before the blueprint can be treated as stable.",
-      inferPendingReviewView(item)
-    );
-  });
-
-  if (overviewSources.versionState.currentSliceModule?.moduleName === "unknown") {
-    addItem(
-      userItems,
-      "current-slice-module",
-      "Current slice -> module mapping still needs confirmation",
-      "Confirm which module the current work package belongs to before continuing implementation.",
-      "version-cockpit",
-      "high"
-    );
-  }
-
-  overviewSources.versionState.verificationMatrix.forEach((item, index) => {
-    if (normalizeValue(item.label).startsWith("validation item")) {
-      addItem(
-        cleanupItems,
-        `verification-item-${index + 1}`,
-        `Validation item ${index + 1} needs a clearer name`,
-        item.note || "Rename this validation item so people can tell what has been checked and what still needs work.",
-        "verification-matrix"
-      );
-    }
-  });
-
-  mergeRisks(overviewSources.versionState.keyRisks, projectState.status.riskFlags).forEach((item, index) => {
-    if (normalizeValue(item.title).startsWith("risk item")) {
-      addItem(
-        cleanupItems,
-        `risk-item-${index + 1}`,
-        `Risk item ${index + 1} needs a clearer title`,
-        item.detail || "Rename this risk so the team can understand what it blocks or threatens.",
-        "risk-blockers"
-      );
-    }
-  });
-
-  conflicts.forEach((item, index) => {
-    const targetBucket = isSourceConflictType(item?.type) ? conflictItems : auditItems;
-    addItem(
-      targetBucket,
-      `${isSourceConflictType(item?.type) ? "source-conflict" : "audit-conflict"}-${index + 1}`,
-      item.message,
-      buildConflictImpactHint(item),
-      "risk-blockers",
-      item.level || "medium"
-    );
-  });
-
-  buildSuperpowersPendingReviewItems(overviewSources).forEach((item) => {
-    addItem(auditItems, item.id, item.label, item.detail, item.viewId, item.severity);
-  });
-
-  const items = [...userItems, ...cleanupItems, ...conflictItems, ...auditItems];
-
-  return {
-    count: items.length,
-    signature: items.map((item) => item.id).join("|"),
-    items,
-    userItems,
-    cleanupItems,
-    conflictItems,
-    auditItems,
-    userCount: userItems.length,
-    cleanupCount: cleanupItems.length,
-    conflictCount: conflictItems.length,
-    auditCount: auditItems.length,
-    gptPrompt: buildPendingReviewPrompt(userItems),
-    codexCleanupPrompt: buildPendingCleanupPrompt(cleanupItems, conflicts)
-  };
-}
-
-function buildPendingReviewPrompt(items) {
-  const lines = [
-    "Please help me confirm the remaining blueprint questions below.",
-    "Goal: tighten the project definition and version boundary before further implementation.",
-    "Rules:",
-    "1. Prefer direct recommended answers when reasonable.",
-    "2. If there are multiple viable choices, group them as options with pros/cons.",
-    "3. Ask at most 5 high-value clarification questions.",
-    "",
-    "Items that need user confirmation:"
-  ];
-
-  if (!items.length) {
-    lines.push("- None.");
-  } else {
-    items.forEach((item) => {
-      lines.push(`- ${item.label}: ${item.detail}`);
-    });
-  }
-
-  lines.push("", "Please respond with:", "1. Recommended confirmations", "2. Optional alternatives", "3. Remaining critical questions");
-  return lines.join("\n");
-}
-
-function buildPendingCleanupPrompt(cleanupItems, conflicts) {
-  const lines = [
-    "Please clean up project control-state quality without changing business code.",
-    "Goal: make repo-side control files easier to read and more actionable in the dashboard.",
-    "Rules:",
-    "1. Rename placeholder validation items into concrete repo-grounded verification targets.",
-    "2. Rename placeholder risk items into concrete repo-grounded risk titles and scopes.",
-    "3. Review source inconsistencies and separate final-goal declarations from current repo-observed facts.",
-    "4. Keep true strategic uncertainties as needs_confirmation instead of forcing a false resolution.",
-    "",
-    "Control-state cleanup items:"
-  ];
-
-  if (!cleanupItems.length) {
-    lines.push("- No placeholder validation or risk labels remain.");
-  } else {
-    cleanupItems.forEach((item) => {
-      lines.push(`- ${item.label}: ${item.detail}`);
-    });
-  }
-
-  if (conflicts.length) {
-    lines.push("", "Source inconsistencies to review:");
-    conflicts.slice(0, 12).forEach((item) => {
-      lines.push(`- [${item.level}] ${item.message}`);
-    });
-  }
-
-  lines.push(
-    "",
-    "Please respond with:",
-    "1. Exact control files to update",
-    "2. Proposed renamed validation/risk items",
-    "3. Source inconsistencies that should remain unresolved",
-    "4. Minimum follow-up questions only if a true strategic answer is still missing"
-  );
-  return lines.join("\n");
-}
-
-function inferPendingReviewView(label) {
-  const normalized = normalizeValue(label);
-  if (normalized.includes("module")) return "modules";
-  if (normalized.includes("version") || normalized.includes("dod") || normalized.includes("work package")) return "version-cockpit";
-  if (normalized.includes("verify") || normalized.includes("validation") || normalized.includes("test")) return "verification-matrix";
-  if (normalized.includes("risk") || normalized.includes("conflict")) return "risk-blockers";
-  if (normalized.includes("tech") || normalized.includes("render") || normalized.includes("backend")) return "tech";
-  if (normalized.includes("game") || normalized.includes("visual")) return "game";
-  return "definition";
-}
-
 function deriveRiskTitle(item, index) {
   if (typeof item === "string" && item.trim()) {
     return item.trim();
@@ -2082,26 +1995,6 @@ function deriveRiskTitle(item, index) {
     return item.detail.slice(0, 48);
   }
   return `Risk item ${index + 1}`;
-}
-
-function buildConflictImpactHint(conflict) {
-  const message = String(conflict?.message || "");
-  if (conflict?.type === "run_protocol_incomplete") {
-    return "This is a control-file protocol issue in historical run records. It does not mean the business implementation regressed, but it keeps dashboard evidence less trustworthy.";
-  }
-  if (conflict?.type === "missing_run_file") {
-    return "This means a historical run record path could not be resolved. It affects evidence integrity, not current business behavior.";
-  }
-  if (message.includes("backend")) {
-    return "This affects how the dashboard interprets planned backend capability versus what is currently present in the repo.";
-  }
-  if (message.includes("project_type")) {
-    return "This affects how the dashboard classifies the project and which views are emphasized.";
-  }
-  if (message.includes("validation")) {
-    return "This affects whether the dashboard treats verification evidence as aligned and trustworthy.";
-  }
-  return "If left unresolved, this keeps the dashboard conservative and may lower trust in summaries, diagrams, and action-state reasoning.";
 }
 
 function pushUnknownField(fields, label, field) {
@@ -2121,14 +2014,6 @@ function uniqueStrings(items) {
 
 function normalizeValue(value) {
   return String(value || "").trim().toLowerCase();
-}
-
-function isSourceConflictType(type) {
-  const normalized = String(type || "").trim().toLowerCase();
-  return normalized.startsWith("project_")
-    || normalized.startsWith("tech_")
-    || normalized.startsWith("game_")
-    || normalized.startsWith("version_");
 }
 
 function isExplicitNoGo(value) {
