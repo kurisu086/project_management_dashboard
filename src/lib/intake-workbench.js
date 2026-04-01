@@ -16,6 +16,7 @@ const {
   collectNewProjectDraftGaps,
   summarizeRecoverySnapshot
 } = require("./intake-workbench-support");
+const { determineOnboardingMode } = require("./superpowers-onboarding");
 
 const FLOW_STATES = {
   DRAFT_BASELINE: "draft_baseline",
@@ -88,6 +89,7 @@ function normalizeNewProjectDraft(raw) {
     techPreferences: text(raw.techPreferences),
     techConstraints: text(raw.techConstraints),
     useSuperpowers: normalizeBoolean(raw.useSuperpowers),
+    onboardingMode: raw.onboardingMode || determineOnboardingMode(raw),
     gameCategory: text(raw.gameCategory),
     coreGameplay: text(raw.coreGameplay),
     visualDirection: text(raw.visualDirection),
@@ -117,6 +119,7 @@ function normalizeRecoverySession(raw) {
     coarseJudgment: text(raw.coarseJudgment),
     keyQuestions: normalizeStringList(raw.keyQuestions || raw.keyQuestion),
     useSuperpowers: normalizeBoolean(raw.useSuperpowers),
+    onboardingMode: raw.onboardingMode || determineOnboardingMode(raw),
     provisionalSummary: normalizeStringList(raw.provisionalSummary),
     unresolvedItems: normalizeStringList(raw.unresolvedItems),
     savedAt: raw.savedAt || null,

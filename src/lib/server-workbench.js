@@ -24,6 +24,7 @@ const {
 const {
   diagnoseProjectPath
 } = require("./project-path-diagnostics");
+const { determineOnboardingMode } = require("./superpowers-onboarding");
 const {
   projectIdFromPath,
   readJsonIfExists,
@@ -61,7 +62,8 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
       details: {
         projectPath: payload?.projectPath || null,
         projectName: payload?.projectName || null,
-        useSuperpowers: Boolean(payload?.useSuperpowers)
+        useSuperpowers: Boolean(payload?.useSuperpowers),
+        onboardingMode: determineOnboardingMode(payload || {})
       }
     });
     sendJson(response, 200, {
@@ -69,6 +71,7 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
       actionBoundary: "dashboard_local_only",
       message: "New project draft saved locally.",
       runtime: getRuntimeInfo(),
+      onboardingMode: registryState.workbench.newProjectDraft.onboardingMode,
       ...buildWorkbenchResponse(registryState)
     });
     return true;
@@ -89,7 +92,8 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
         projectPath: payload.projectPath || null,
         projectName: payload.projectName || null,
         updatedFiles: preview.updatedFiles,
-        useSuperpowers: payload.useSuperpowers
+        useSuperpowers: payload.useSuperpowers,
+        onboardingMode: payload.onboardingMode
       }
     });
     sendJson(response, 200, {
@@ -97,6 +101,7 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
       actionBoundary: "explicit_maintenance_write",
       message: "New project filing preview generated. Confirm before writing source-state files.",
       runtime: getRuntimeInfo(),
+      onboardingMode: payload.onboardingMode,
       preview,
       prompts: {
         newProject: buildNewProjectPromptBundle(payload, {
@@ -124,7 +129,8 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
         projectName: payload.projectName || null,
         projectId: result.project?.id || null,
         updatedFiles: result.scan?.updatedFiles || [],
-        useSuperpowers: payload.useSuperpowers
+        useSuperpowers: payload.useSuperpowers,
+        onboardingMode: payload.onboardingMode
       }
     });
     sendJson(response, 200, {
@@ -132,6 +138,7 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
       actionBoundary: "explicit_maintenance_write",
       message: "New project filing written to source-state files after explicit confirmation.",
       runtime: getRuntimeInfo(),
+      onboardingMode: result.project?.onboardingMode || payload.onboardingMode,
       ...result,
       ...buildWorkbenchResponse(registryState)
     });
@@ -154,7 +161,8 @@ async function handleWorkbenchApiRequest(request, response, url, context) {
         name: payload?.name || null,
         projectId: result.project?.id || null,
         actionBoundary: result.actionBoundary,
-        useSuperpowers: Boolean(payload?.useSuperpowers)
+        useSuperpowers: Boolean(payload?.useSuperpowers),
+        onboardingMode: determineOnboardingMode(payload || {})
       }
     });
     sendJson(response, 200, {
@@ -215,10 +223,14 @@ async function applyNewProjectDraftWriteback(draft, context) {
 
   const snapshot = await context.refreshProject(projectRecord, { persist: true });
   return {
-    project: snapshot.project,
+    project: {
+      ...snapshot.project,
+      onboardingMode: projectRecord.onboardingMode
+    },
     scan: {
       ...applyResult,
-      workflowState
+      workflowState,
+      onboardingMode: projectRecord.onboardingMode
     },
     snapshot
   };
@@ -238,6 +250,7 @@ async function attachRecoveryProject(payload, context) {
     coarseJudgment: payload.coarseJudgment,
     keyQuestions: payload.keyQuestions || payload.keyQuestion,
     useSuperpowers: payload.useSuperpowers,
+    onboardingMode: projectRecord.onboardingMode,
     provisionalSummary: provisionalSummary.summary,
     unresolvedItems: provisionalSummary.unresolved,
     lastCodexPromptAt: new Date().toISOString(),
@@ -250,13 +263,17 @@ async function attachRecoveryProject(payload, context) {
 
   return {
     actionBoundary: alreadyAttached ? "dashboard_local_only" : "initialization_write",
-    project: snapshot.project,
+    onboardingMode: projectRecord.onboardingMode,
+    ...snapshot,
+    project: {
+      ...snapshot.project,
+      onboardingMode: projectRecord.onboardingMode
+    },
     recovery: {
       session,
       prompts: buildRecoveryPromptBundle(session, snapshot, summarizeRecoverySnapshot(snapshot, session)),
       provisionalSummary: summarizeRecoverySnapshot(snapshot, session)
-    },
-    ...snapshot
+    }
   };
 }
 
@@ -292,7 +309,8 @@ function buildProjectRecordFromPayload(rootPath, name, useSuperpowers) {
     name: name && String(name).trim() ? String(name).trim() : path.win32.basename(rootPath),
     rootPath,
     addedAt: new Date().toISOString(),
-    useSuperpowers: Boolean(useSuperpowers)
+    useSuperpowers: Boolean(useSuperpowers),
+    onboardingMode: determineOnboardingMode({ useSuperpowers: Boolean(useSuperpowers) })
   };
 }
 

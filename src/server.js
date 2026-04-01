@@ -65,6 +65,7 @@ const {
 const {
   getRepoLocalSkillPaths
 } = require("./lib/repo-skill-templates");
+const { determineOnboardingMode } = require("./lib/superpowers-onboarding");
 
 const registryState = {
   registry: null,
@@ -434,7 +435,10 @@ async function addProject(payload) {
     name,
     rootPath,
     addedAt: existingRecord ? existingRecord.addedAt : new Date().toISOString(),
-    useSuperpowers: Boolean(payload?.useSuperpowers || existingRecord?.useSuperpowers)
+    useSuperpowers: Boolean(payload?.useSuperpowers || existingRecord?.useSuperpowers),
+    onboardingMode: determineOnboardingMode({
+      useSuperpowers: Boolean(payload?.useSuperpowers || existingRecord?.useSuperpowers)
+    })
   };
 
   await ensureProjectScaffold(projectRecord);
@@ -472,7 +476,11 @@ async function addProject(payload) {
     message: "项目添加成功。",
     diagnostic,
     runtime,
-    ...(registryState.snapshots.get(projectRecord.id))
+    ...(registryState.snapshots.get(projectRecord.id)),
+    project: {
+      ...(registryState.snapshots.get(projectRecord.id)?.project || projectRecord),
+      onboardingMode: projectRecord.onboardingMode
+    }
   };
 }
 

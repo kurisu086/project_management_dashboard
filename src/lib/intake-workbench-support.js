@@ -12,6 +12,7 @@ const {
   buildDefaultProjectState,
   normalizeProjectState
 } = require("./state-generator");
+const { determineOnboardingMode } = require("./superpowers-onboarding");
 
 const NEW_PROJECT_FIELD_SEQUENCE = [
   { key: "projectPath", label: "项目路径", includeInPrompt: false, guidance: "填写 Windows 本机 git repo 绝对路径；这项通常不需要 GPT 推断。" },
@@ -46,10 +47,8 @@ function buildNewProjectPromptBundle(draft, options = {}) {
     draft.projectType === "game" && !text(draft.visualDirection) ? "visualDirection" : null
   ]);
   const conciseDraft = buildConciseDraftSummary(draft);
-  const superpowersLines = draft.useSuperpowers ? [
-    "Superpowers mode: enabled.",
-    "Future repo-side development must strictly follow docs/superpowers/specs/** and docs/superpowers/plans/** when those materials exist."
-  ] : [];
+  const onboardingMode = draft.onboardingMode || determineOnboardingMode(draft);
+  const superpowersLines = buildModeAwarePromptLines(onboardingMode, "closeout");
   const skillList = [
     "codex-project-handoff",
     "codex-task-closeout-writeback",
@@ -67,6 +66,7 @@ function buildNewProjectPromptBundle(draft, options = {}) {
       "4. Return JSON only if possible.",
       "5. If the project is a game, also fill gameCategory, coreGameplay, visualDirection, backendExpectation, networkingExpectation.",
       "6. At most 3 clarification questions.",
+      "Onboarding mode: " + onboardingMode,
       "Focus fill targets: " + (strongFillTargets.join(" / ") || "none"),
       "",
       "Missing fields: " + (missingFields.join(", ") || "none"),
@@ -105,10 +105,8 @@ function buildNewProjectPromptBundle(draft, options = {}) {
 
 function buildRecoveryPromptBundle(session, snapshot, provisional) {
   const summary = provisional || summarizeRecoverySnapshot(snapshot, session);
-  const superpowersLines = session?.useSuperpowers ? [
-    "Superpowers mode: enabled.",
-    "Future repo-side development and recovery should strictly follow docs/superpowers/specs/** and docs/superpowers/plans/** when those materials exist."
-  ] : [];
+  const onboardingMode = session?.onboardingMode || determineOnboardingMode(session);
+  const superpowersLines = buildModeAwarePromptLines(onboardingMode, "recovery");
   return {
     codexScanPrompt: [
       "Run this in the target repo Codex session, not inside the dashboard.",
@@ -126,6 +124,7 @@ function buildRecoveryPromptBundle(session, snapshot, provisional) {
       "3. Report current slice, recent change summaries, test state, consistency declared, and technical clues.",
       "4. If direction-defining gaps remain, list them clearly instead of deciding for the user.",
       "5. Report which files were filled, which fields remain unresolved, and whether the repo is ready_for_implementation.",
+      "Onboarding mode: " + onboardingMode,
       ...superpowersLines,
       "",
       "Project name: " + (session.projectName || "missing"),
@@ -444,7 +443,8 @@ function buildConciseDraftSummary(draft) {
     "Target experience: " + (draft.targetExperience || "missing"),
     "Tech preferences: " + (draft.techPreferences || "missing"),
     "Tech constraints: " + (draft.techConstraints || "missing"),
-    "Use Superpowers: " + (draft.useSuperpowers ? "true" : "false")
+    "Use Superpowers: " + (draft.useSuperpowers ? "true" : "false"),
+    "Onboarding mode: " + (draft.onboardingMode || determineOnboardingMode(draft))
   ];
   if (draft.projectType === "game") {
     lines.push("Game category: " + (draft.gameCategory || "missing"));
@@ -453,6 +453,21 @@ function buildConciseDraftSummary(draft) {
     lines.push("Backend / networking expectation: " + (draft.backendExpectation || "missing") + " / " + (draft.networkingExpectation || "missing"));
   }
   return lines;
+}
+
+function buildModeAwarePromptLines(onboardingMode, promptType) {
+  if (onboardingMode !== "superpowers") {
+    return [];
+  }
+
+  return [
+    "Onboarding mode: superpowers.",
+    "This repo is currently in dashboard-declared Superpowers mode.",
+    "Future development must follow docs/superpowers/specs/** -> docs/superpowers/plans/** -> implementation when workflow-defining work appears.",
+    promptType === "recovery"
+      ? "Recovery output must stay aligned with confirmed Superpowers decisions already captured for this repo."
+      : "Closeout and writeback must stay aligned with confirmed Superpowers decisions already captured for this repo."
+  ];
 }
 
 function buildMinimumQuestions(items) {
