@@ -6,22 +6,29 @@ import {
   renderSuperpowersDriftHint,
   renderSuperpowersWorkflowSummary
 } from "./app-views-superpowers.js";
+import {
+  renderInstructionCenterView,
+  renderOnboardingView,
+  renderOverviewWorkflowGuidance
+} from "./app-views-workflow.js";
 import { renderExistingProjectRecoveryView, renderGptAssistView, renderNewProjectFilingView } from "./app-workbench.js";
+import {
+  listToText,
+  renderConsistencyBlock,
+  renderFieldSection,
+  renderStringListCard,
+  simpleHtmlRow,
+  simpleRow
+} from "./app-views-shared.js";
 import {
   buildEmptyState,
   buildJsonPreview,
   displayRiskTitle,
   displayValidationLabel,
   escapeHtml,
-  formatMultiline,
-  getFieldConfidence,
-  getFieldSourceKind,
-  getFieldUpdatedAt,
-  getFieldValue,
   renderFieldRow,
   renderKeyValueRows,
   renderRiskPill,
-  renderSourcePill,
   renderStatusPill,
   renderTag
 } from "./app-utils.js";
@@ -114,6 +121,7 @@ function renderOverviewView(ctx, view) {
       <section class="content-card">
         <h3>当前控制摘要</h3>
         <div class="data-list">
+          ${renderOverviewWorkflowGuidance(snapshot.summary)}
           ${renderSuperpowersWorkflowSummary(snapshot.summary)}
           ${renderSuperpowersDriftHint(snapshot.summary)}
         </div>
@@ -462,44 +470,6 @@ function renderRiskBlockersView(ctx, view) {
   `;
 }
 
-function renderInstructionCenterView(ctx, view) {
-  return `
-    <div class="content-grid two-col">
-      <section class="content-card">
-        <h3>指令中心</h3>
-        <div class="data-list">
-          ${renderSuperpowersDriftHint(ctx.state.activeSnapshot?.summary)}
-        </div>
-        ${renderKeyValueRows([
-          simpleRow("当前最适合的指令类型", view.primaryType, [renderStatusPill(view.currentActionState)]),
-          simpleRow("当前可动作状态", view.currentActionState, [renderStatusPill(view.currentActionState)]),
-          simpleHtmlRow("状态原因", listToText(view.currentActionReasons)),
-          simpleHtmlRow("次级条件", listToText(view.secondaryConditions)),
-          simpleHtmlRow("发指令前应补充的上下文", listToText(view.requiredContext))
-        ])}
-      </section>
-      <section class="content-card">
-        <h3>可直接复制的指令模板</h3>
-        <div class="data-list">
-          ${(view.availableTypes || [])
-            .map(
-              (item) => `
-                <div class="data-row">
-                  <div>
-                    <strong>${escapeHtml(item.type || "template")}</strong>
-                    <small>${escapeHtml(item.label || "")}</small>
-                    <div class="template-card"><pre>${escapeHtml(item.template || "")}</pre></div>
-                  </div>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      </section>
-    </div>
-  `;
-}
-
 function renderDeliverablesView(ctx, view) {
   return `
     <div class="content-grid single-col">
@@ -570,50 +540,6 @@ function renderRuntimeView(ctx) {
   `;
 }
 
-function renderOnboardingView(ctx) {
-  const onboarding = ctx.state.activeSnapshot?.detail?.views?.onboarding;
-  if (!onboarding) {
-    return `
-      <section class="content-card">
-        <h3>接入与运行</h3>
-        ${renderKeyValueRows([
-          simpleRow("启动命令", "node src/server.js"),
-          simpleRow("访问地址", "http://localhost:4310"),
-          simpleRow("支持路径", "C:\\work\\demo / D:\\repo\\my-project")
-        ])}
-      </section>
-    `;
-  }
-  return `
-    <div class="content-grid two-col">
-      <section class="content-card">
-        <h3>接入与运行</h3>
-        ${renderStringListCard("步骤", onboarding.steps)}
-        ${renderStringListCard("支持的路径格式", onboarding.supportedPaths)}
-        ${renderStringListCard("不支持的方式", onboarding.unsupportedWays)}
-      </section>
-      <section class="content-card">
-        <h3>动作边界</h3>
-        <div class="data-list">
-          ${(onboarding.actionBoundaries || [])
-            .map(
-              (item) => `
-                <div class="data-row">
-                  <div>
-                    <strong>${escapeHtml(item.label || "boundary")}</strong>
-                    <small>${escapeHtml(item.scope || "")}</small>
-                  </div>
-                  <div class="pill-list">${renderTag(item.mode || "unknown", "source-neutral")}</div>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      </section>
-    </div>
-  `;
-}
-
 function renderGenericView(ctx, view) {
   return `
     <div class="content-grid single-col">
@@ -629,75 +555,6 @@ function fieldRow(label, field, options = {}) {
   return renderFieldRow(label, field, { includeUpdated: true, ...options });
 }
 
-function simpleRow(label, value, tags = []) {
-  return { label, value: value || "暂无", tags };
-}
-
-function simpleHtmlRow(label, valueHtml, tags = []) {
-  return { label, valueHtml: escapeHtml(valueHtml || "暂无"), tags };
-}
-
-function renderFieldSection(title, field) {
-  return `
-    <section class="template-card section-spacer">
-      <strong>${escapeHtml(title)}</strong>
-      <p>${formatMultiline(getFieldValue(field) || "暂无")}</p>
-      <div class="pill-list">
-        ${renderSourcePill(getFieldSourceKind(field), getFieldSourceKind(field))}
-        ${renderTag(formatDateTime(getFieldUpdatedAt(field)), "source-neutral")}
-        ${renderTag(getFieldConfidence(field), "source-neutral")}
-      </div>
-    </section>
-  `;
-}
-
-function renderStringListCard(title, items, tagClass = "") {
-  const list = normalizeList(items);
-  return `
-    <section class="template-card section-spacer">
-      <strong>${escapeHtml(title)}</strong>
-      ${
-        list.length
-          ? `<ul>${list
-              .map((item) => {
-                const text = typeof item === "string" ? item : item?.label || item?.title || String(item);
-                return `<li>${tagClass ? renderTag(text, tagClass) : escapeHtml(text)}</li>`;
-              })
-              .join("")}</ul>`
-          : `<div class="empty-inline">暂无</div>`
-      }
-    </section>
-  `;
-}
-
-function renderConsistencyBlock(consistency) {
-  if (!consistency) {
-    return buildEmptyState("当前没有一致性数据。");
-  }
-  return `
-    <div class="data-list">
-      ${["docs", "code", "tests"]
-        .map(
-          (key) => `
-            <div class="data-row">
-              <div>
-                <strong>${escapeHtml(key)}</strong>
-                <small>${escapeHtml(consistency.declared?.[key]?.note || "暂无")}</small>
-              </div>
-              <div class="pill-list">
-                ${renderStatusPill(consistency.declared?.[key]?.status || "unknown")}
-                ${renderSourcePill("declared", "declared")}
-              </div>
-            </div>
-          `
-        )
-        .join("")}
-      <div class="data-row"><div><strong>模式</strong><small>${escapeHtml(consistency.mode || "unknown")}</small></div></div>
-      <div class="data-row"><div><strong>verified</strong><small>${escapeHtml(consistency.verified ? "available" : "not available")}</small></div></div>
-    </div>
-  `;
-}
-
 function renderDiagnosticCard(item) {
   return `
     <article class="diagnostic-card">
@@ -710,15 +567,4 @@ function renderDiagnosticCard(item) {
       <div class="template-card"><pre>${escapeHtml(JSON.stringify(item.diagnostic || item, null, 2))}</pre></div>
     </article>
   `;
-}
-
-function listToText(items) {
-  const list = normalizeList(items).map((item) => {
-    if (typeof item === "string") return item;
-    if (item && typeof item === "object") {
-      return item.label || item.title || item.value || JSON.stringify(item);
-    }
-    return String(item);
-  });
-  return list.length ? list.join("、") : "暂无";
 }
