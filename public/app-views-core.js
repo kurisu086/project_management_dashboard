@@ -1,5 +1,11 @@
 import { isDiagramView, resolveViewKey } from "./app-config.js";
 import { renderDiagramCollectionView } from "./app-diagrams.js";
+import {
+  renderRecentChangesView,
+  renderStatusSourcesView,
+  renderSuperpowersDriftHint,
+  renderSuperpowersWorkflowSummary
+} from "./app-views-superpowers.js";
 import { renderExistingProjectRecoveryView, renderGptAssistView, renderNewProjectFilingView } from "./app-workbench.js";
 import {
   buildEmptyState,
@@ -7,7 +13,6 @@ import {
   displayRiskTitle,
   displayValidationLabel,
   escapeHtml,
-  formatDateTime,
   formatMultiline,
   getFieldConfidence,
   getFieldSourceKind,
@@ -108,6 +113,10 @@ function renderOverviewView(ctx, view) {
       </section>
       <section class="content-card">
         <h3>当前控制摘要</h3>
+        <div class="data-list">
+          ${renderSuperpowersWorkflowSummary(snapshot.summary)}
+          ${renderSuperpowersDriftHint(snapshot.summary)}
+        </div>
         ${renderKeyValueRows([
           simpleRow("Primary State", snapshot.summary.currentActionState, [renderStatusPill(snapshot.summary.currentActionState)]),
           simpleHtmlRow("状态原因", listToText(snapshot.summary.currentActionReasons)),
@@ -458,6 +467,9 @@ function renderInstructionCenterView(ctx, view) {
     <div class="content-grid two-col">
       <section class="content-card">
         <h3>指令中心</h3>
+        <div class="data-list">
+          ${renderSuperpowersDriftHint(ctx.state.activeSnapshot?.summary)}
+        </div>
         ${renderKeyValueRows([
           simpleRow("当前最适合的指令类型", view.primaryType, [renderStatusPill(view.currentActionState)]),
           simpleRow("当前可动作状态", view.currentActionState, [renderStatusPill(view.currentActionState)]),
@@ -507,60 +519,6 @@ function renderDeliverablesView(ctx, view) {
               `
             )
             .join("") || buildEmptyState("当前没有固定交付记录。")}
-        </div>
-      </section>
-    </div>
-  `;
-}
-
-function renderRecentChangesView(ctx, view) {
-  return `
-    <div class="content-grid single-col">
-      <section class="content-card">
-        <h3>${escapeHtml(view.title || "最近两次变更摘要")}</h3>
-        ${renderRecentEntries(view.entries || [])}
-      </section>
-    </div>
-  `;
-}
-
-function renderStatusSourcesView(ctx, view) {
-  return `
-    <div class="content-grid two-col">
-      <section class="content-card">
-        <h3>状态来源说明</h3>
-        <div class="data-list">
-          ${(view.markers || [])
-            .map(
-              (item) => `
-                <div class="data-row">
-                  <div>
-                    <strong>${escapeHtml(item.label || "marker")}</strong>
-                    <small>${escapeHtml(item.meaning || "")}</small>
-                  </div>
-                  <div class="pill-list">${(item.files || []).slice(0, 3).map((file) => renderTag(file, "source-neutral")).join("")}</div>
-                </div>
-              `
-            )
-            .join("")}
-        </div>
-      </section>
-      <section class="content-card">
-        <h3>动作边界</h3>
-        <div class="data-list">
-          ${(view.actionBoundaries || [])
-            .map(
-              (item) => `
-                <div class="data-row">
-                  <div>
-                    <strong>${escapeHtml(item.label || "boundary")}</strong>
-                    <small>${escapeHtml(item.scope || "")}</small>
-                  </div>
-                  <div class="pill-list">${renderTag(item.mode || "unknown", "source-neutral")}</div>
-                </div>
-              `
-            )
-            .join("")}
         </div>
       </section>
     </div>
@@ -736,33 +694,6 @@ function renderConsistencyBlock(consistency) {
         .join("")}
       <div class="data-row"><div><strong>模式</strong><small>${escapeHtml(consistency.mode || "unknown")}</small></div></div>
       <div class="data-row"><div><strong>verified</strong><small>${escapeHtml(consistency.verified ? "available" : "not available")}</small></div></div>
-    </div>
-  `;
-}
-
-function renderRecentEntries(entries) {
-  const list = normalizeList(entries);
-  if (!list.length) {
-    return buildEmptyState("当前没有最近变更摘要。");
-  }
-  return `
-    <div class="data-list">
-      ${list
-        .map(
-          (item) => `
-            <div class="data-row">
-              <div>
-                <strong>${escapeHtml(item.title || item.id || "entry")}</strong>
-                <small>${escapeHtml(item.summary || "暂无摘要")}</small>
-              </div>
-              <div class="pill-list">
-                ${renderStatusPill(item.type || "run")}
-                ${renderTag(formatDateTime(item.createdAt), "source-neutral")}
-              </div>
-            </div>
-          `
-        )
-        .join("")}
     </div>
   `;
 }

@@ -32,12 +32,14 @@ This note summarizes how `project_management_dashboard` currently works so futur
 - Injects repo-local skills and `AGENTS.md` / `.gitignore` control blocks.
 - Reads project snapshots from repo-side source state.
 - Produces project config and watch manifest files.
+- Collects repo-local skill facts plus git-backed repo-change fallback evidence for monitored repos.
 
 ### `src/lib/project-overview.js`
 
 - Scans repo-visible signals.
 - Merges repo-side declared state, repo-derived facts, and optional Superpowers supplemental docs.
 - Normalizes baseline, version, game, and decision views.
+- Derives structured Superpowers workflow state and flags writeback drift conflicts when repo-visible changes outpace formal closeout records.
 
 ### `src/lib/state-generator.js`
 
@@ -45,6 +47,22 @@ This note summarizes how `project_management_dashboard` currently works so futur
 - Builds summary and detail payloads used by the UI.
 - Writes dashboard-local `current_state.json` and `current_state.md` cache files.
 - Assembles navigation, view models, pending review prompts, and visualization payloads.
+- Delegates Superpowers-specific summary/detail/view wiring to focused helper modules.
+
+### `src/lib/repo-change-fallback.js`
+
+- Reads real git commit and working-tree facts for monitored repos.
+- Produces inferred fallback evidence only when formal writeback is missing or stale.
+
+### `src/lib/superpowers-workflow-state.js`
+
+- Converts specs, plans, formal runs, repo-local skills, and repo fallback facts into a stable workflow-state model.
+- Distinguishes `formal_run` evidence from `repo_fallback` inference so downstream views can explain confidence clearly.
+
+### `src/lib/state-generator-superpowers.js`
+
+- Adapts workflow-state output into summary fields, recent-change entries, pending-review items, instruction guidance, and markdown sections.
+- Keeps Superpowers-specific branching out of the main state-generator control flow.
 
 ### `src/lib/server-workbench.js`
 
@@ -110,6 +128,26 @@ This note summarizes how `project_management_dashboard` currently works so futur
 
 - Renders most project detail views such as overview, modules, tech, risks, verification, and onboarding.
 
+### `public/app-views-superpowers.js`
+
+- Renders compact workflow, drift, and evidence-source callouts for overview, instruction-center, recent-changes, and status-sources views.
+- Keeps Superpowers-specific UI fragments separate from the main view renderer.
+
+## Superpowers Monitored Project Aggregation Path
+
+When a monitored repo uses Superpowers, the dashboard now resolves execution evidence in this order:
+
+1. `/.codex-control/project_state.json` and `/.codex-control/runs/*.json` are the primary execution truth.
+2. `docs/superpowers/specs/*.md` and `docs/superpowers/plans/*.md` provide workflow context and linked design titles.
+3. Real git/repo-visible changes are used only as inferred fallback evidence when formal writeback is missing or stale.
+
+This distinction is surfaced through:
+
+- summary fields such as `superpowersWorkflowState`, `latestExecutionEvidenceSource`, `hasUnwrittenRepoChanges`, and `writebackDrift`
+- pending-review items when repo changes exist without a newer closeout run
+- instruction-center guidance that switches to a sync-document flow before more implementation guidance
+- recent-changes and status-sources views that visibly separate formal run evidence from inferred repo drift
+
 ## Tests
 
 - `scripts/regression.windows.js` verifies attach, refresh, workbench, cleanup, and cache behavior with isolated temp data.
@@ -119,16 +157,14 @@ This note summarizes how `project_management_dashboard` currently works so futur
 
 The repo currently has several oversized `.js` files relative to the 700-line rule in `AGENTS.md`:
 
-- `src/lib/state-generator.js` (2126)
-- `src/lib/project-overview.js` (1976)
-- `public/app-views-core.js` (793)
-- `src/server.js` (727)
+- `src/lib/state-generator.js` (2009)
+- `src/lib/project-overview.js` (1836)
 
 Future feature work that touches these files should split by responsibility before adding more logic, consistent with the AGENTS rule.
 
 ## Safe Mental Model For Future Changes
 
 - Treat `src/server.js` as the transport and lifecycle layer.
-- Treat `project-reader.js` plus `project-overview.js` plus `state-generator.js` as the source-state aggregation pipeline.
+- Treat `project-reader.js` plus `project-overview.js` plus `state-generator.js` as the source-state aggregation pipeline, with `repo-change-fallback.js`, `superpowers-workflow-state.js`, and `state-generator-superpowers.js` handling the new Superpowers-specific slices.
 - Treat `server-workbench.js` plus `intake-workbench.js` as the intake and recovery workflow engine.
-- Treat `app-main.js` as the browser orchestrator; `app-api.js`, `app-config.js`, `app-session.js`, and `app-diagrams.js` handle transport, config, session, and diagram coordination; `app-shell.js`, `app-workbench.js`, and `app-views-core.js` render the shell and views.
+- Treat `app-main.js` as the browser orchestrator; `app-api.js`, `app-config.js`, `app-session.js`, and `app-diagrams.js` handle transport, config, session, and diagram coordination; `app-shell.js`, `app-workbench.js`, `app-views-core.js`, and `app-views-superpowers.js` render the shell and views.

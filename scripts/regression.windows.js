@@ -7,7 +7,7 @@ const TEST_DATA_DIR = path.join(ROOT, "tmp", "regression-data");
 process.env.CODEX_CONTROL_DATA_DIR = TEST_DATA_DIR;
 const { startServer, stopServer } = require("../src/server");
 const { SCHEMA_VERSION } = require("../src/lib/constants");
-const { createGitFixtureRepo } = require("./test-helpers/git-fixture");
+const { createGitFixtureRepo, writeWorkingTreeChange } = require("./test-helpers/git-fixture");
 const REGISTRY_FILE = path.join(TEST_DATA_DIR, "project-registry.json");
 const WORKBENCH_FILE = path.join(TEST_DATA_DIR, "intake-workbench.json");
 const CACHE_DIR = path.join(TEST_DATA_DIR, "cache");
@@ -30,6 +30,7 @@ async function main() {
     await testMissingPathFailure();
     await testNonGitDirectoryFailure();
     await testRefreshDoesNotWriteRepo(createdProjectIds);
+    await testSuperpowersWritebackDrift(createdProjectIds);
     await testLegacyModuleBlueprintSchema(createdProjectIds);
     await testWorkbenchFlows(createdProjectIds);
     await testRemoveProjectCleansControlFiles();
@@ -173,6 +174,72 @@ async function testRefreshDoesNotWriteRepo(createdProjectIds) {
   assert.ok(Array.isArray(refreshed.detail.repoFacts.repoChangeFallback.changedFiles), "repo change fallback should expose changed file summaries");
   assert.ok(refreshed.detail.repoFacts.repoChangeFallback.latestCommitSummary, "refresh snapshot should include latest commit summary");
   assert.ok(refreshed.detail.entityRefs.decisions, "decision_log 联动字段应存在。");
+}
+
+async function testSuperpowersWritebackDrift(createdProjectIds) {
+  const repoPath = path.join(FIXTURE_ROOT, "superpowers-drift-repo");
+  await createGitFixtureRepo(repoPath, {
+    "README.md": "# Superpowers Drift Repo\n",
+    "src/index.js": "module.exports = { version: 1 };\n"
+  });
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "specs"), { recursive: true });
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "plans"), { recursive: true });
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "specs", "2026-04-01-feature.md"), "# Feature Spec\n\nSpec summary.\n", "utf8");
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "plans", "2026-04-01-feature.md"), "# Feature Plan\n\nPlan summary.\n", "utf8");
+
+  const created = await requestJson("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      path: repoPath,
+      name: "Superpowers Drift Repo",
+      useSuperpowers: true
+    }),
+    expectStatus: 201
+  });
+  createdProjectIds.add(created.project.id);
+
+  const controlDir = path.join(repoPath, ".codex-control");
+  const runPath = path.join(controlDir, "runs", "2026-04-01-closeout.json");
+  await fs.writeFile(runPath, JSON.stringify({
+    id: "run-1",
+    type: "run",
+    title: "Formal closeout",
+    summary: "Completed the baseline slice"
+  }, null, 2), "utf8");
+
+  const projectStatePath = path.join(controlDir, "project_state.json");
+  const projectState = JSON.parse(await fs.readFile(projectStatePath, "utf8"));
+  projectState.status.lastUpdatedAt = "2026-04-01T10:00:00.000Z";
+  projectState.evidence.history = [
+    {
+      id: "run-1",
+      type: "run",
+      title: "Formal closeout",
+      summary: "Completed the baseline slice",
+      createdAt: "2026-04-01T10:00:00.000Z",
+      file: "2026-04-01-closeout.json"
+    }
+  ];
+  await fs.writeFile(projectStatePath, JSON.stringify(projectState, null, 2), "utf8");
+
+  await writeWorkingTreeChange(repoPath, "src/index.js", "module.exports = { version: 2 };\n");
+
+  const refreshed = await requestJson(`/api/projects/${created.project.id}/refresh`, {
+    method: "POST"
+  });
+
+  assert.equal(refreshed.summary.superpowersWorkflowState, "repo_changed_without_closeout");
+  assert.equal(refreshed.summary.latestExecutionEvidenceSource, "repo_fallback");
+  assert.equal(refreshed.summary.hasUnwrittenRepoChanges, true);
+  assert.equal(refreshed.summary.writebackDrift, "repo_ahead_of_writeback");
+  assert.equal(refreshed.summary.linkedSpecTitle, "Feature Spec");
+  assert.equal(refreshed.summary.linkedPlanTitle, "Feature Plan");
+  assert.ok(
+    refreshed.detail.pendingReview.items.some((item) => item.id === "superpowers-writeback-drift"),
+    "pending review should flag missing closeout writeback"
+  );
+  assert.equal(refreshed.detail.views.instructionCenter.primaryType, "同步文档");
+  assert.equal(refreshed.detail.views.recentChanges.entries[0].type, "repo_change_inferred");
 }
 
 async function testWorkbenchFlows(createdProjectIds) {

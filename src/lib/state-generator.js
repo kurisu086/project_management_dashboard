@@ -19,6 +19,13 @@ const {
   writeJsonAtomic,
   writeTextAtomic
 } = require("./fs-utils");
+const {
+  appendSuperpowersMarkdownSection,
+  buildSuperpowersInstructionGuidance,
+  buildSuperpowersPendingReviewItems,
+  buildSuperpowersRecentEntries,
+  buildSuperpowersSummaryFields
+} = require("./state-generator-superpowers");
 
 function buildDefaultProjectState(displayName) {
   const now = new Date().toISOString();
@@ -148,7 +155,11 @@ function normalizeProjectState(rawState, displayName) {
 }
 
 function buildCurrentState(projectRecord, projectState, repoFacts, conflicts, overviewSources) {
-  const recentChangeSummaries = buildRecentChangeSummaries(projectState, repoFacts);
+  const recentChangeSummaries = buildSuperpowersRecentEntries(
+    overviewSources,
+    buildRecentChangeSummaries(projectState, repoFacts),
+    repoFacts
+  );
   const summary = buildSummary(projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries);
   const cachePaths = buildCachePaths(projectRecord.id);
   const detail = buildDetail(projectRecord, projectState, repoFacts, conflicts, overviewSources, recentChangeSummaries, cachePaths, summary);
@@ -187,6 +198,7 @@ function buildSummary(projectState, repoFacts, conflicts, overviewSources, recen
   const keyRisk = pickPrimaryRisk(versionState.keyRisks, projectState.status.riskFlags);
   const currentAction = deriveCurrentActionAnalysis(projectState, overviewSources, conflicts);
   const pendingReview = buildPendingReviewModel(projectState, overviewSources, conflicts);
+  const superpowersFields = buildSuperpowersSummaryFields(overviewSources);
 
   return {
     oneLineDefinition: projectBrief.oneLineDefinition.value,
@@ -213,6 +225,7 @@ function buildSummary(projectState, repoFacts, conflicts, overviewSources, recen
     gameplaySummary: overviewSources.isGameProject ? gameDesign.coreGameplayLoop.value : "not_applicable",
     superpowersStatus: overviewSources.superpowers.status,
     recentSummaryTitle: determineRecentSummaryTitle(recentChangeSummaries),
+    ...superpowersFields,
     consistencyMode: repoFacts.verifiedConsistency ? "declared_with_verified" : "declared_only",
     stateSources: {
       declared: "repo source state files",
@@ -1528,6 +1541,7 @@ function buildInstructionCenter(projectState, overviewSources, conflicts, summar
         secondaryConditions: summary.secondaryConditions || []
       }
     : deriveCurrentActionAnalysis(projectState, overviewSources, conflicts);
+  const superpowersGuidance = buildSuperpowersInstructionGuidance(overviewSources);
 
   checkField(projectBrief.oneLineDefinition, "project one-line definition", missingBaseline, readyFields);
   checkField(projectBrief.finalGoal, "final goal", missingBaseline, readyFields);
@@ -1561,6 +1575,14 @@ function buildInstructionCenter(projectState, overviewSources, conflicts, summar
     primaryType = "修验证缺口";
   } else if (!missingBaseline.length && !missingVersion.length) {
     primaryType = "实现某模块";
+  }
+
+  if (superpowersGuidance?.overridePrimaryType) {
+    primaryType = superpowersGuidance.overridePrimaryType;
+    currentAction.reasons = uniqueStrings([
+      ...currentAction.reasons,
+      ...(superpowersGuidance.extraReasons || [])
+    ]);
   }
 
   return {
@@ -1613,14 +1635,15 @@ function buildInstructionCenter(projectState, overviewSources, conflicts, summar
       "acceptance / verification scope",
       projectBrief.finalGoal.value === "unknown" ? "final goal" : null,
       projectBrief.targetOutcome.value === "unknown" ? "target outcome" : null,
-      versionState.versionTarget.value === "unknown" ? "current version target" : null
+      versionState.versionTarget.value === "unknown" ? "current version target" : null,
+      ...(superpowersGuidance?.extraRequiredContext || [])
     ]),
     blockingQuestions: [...missingBaseline, ...missingVersion],
     readyFields,
     pendingDecisions: collectPendingDecisions(overviewSources.decisionLog),
-    firstActionHint: missingBaseline.length || missingVersion.length
+    firstActionHint: superpowersGuidance?.firstActionHint || (missingBaseline.length || missingVersion.length
       ? "When baseline or version information is incomplete, prefer a state-completion instruction before direct implementation."
-      : "The project baseline and current version boundary are mostly present, so the next instruction can focus on a module, a gap, or a verification task."
+      : "The project baseline and current version boundary are mostly present, so the next instruction can focus on a module, a gap, or a verification task.")
   };
 }
 
@@ -1763,6 +1786,8 @@ function renderCurrentStateMarkdown(currentState) {
   detail.executionEvidence.fixedDeliverables.forEach((item) => {
     lines.push(`- ${item.title} [${item.status}] ${item.note || ""}`.trim());
   });
+
+  appendSuperpowersMarkdownSection(lines, currentState);
 
   lines.push("", `## ${detail.executionEvidence.recentSummaryTitle}`, "");
   if (!detail.executionEvidence.recentChangeSummaries.length) {
@@ -1944,6 +1969,10 @@ function buildPendingReviewModel(projectState, overviewSources, conflicts) {
       "risk-blockers",
       item.level || "medium"
     );
+  });
+
+  buildSuperpowersPendingReviewItems(overviewSources).forEach((item) => {
+    addItem(auditItems, item.id, item.label, item.detail, item.viewId, item.severity);
   });
 
   const items = [...userItems, ...cleanupItems, ...conflictItems, ...auditItems];
