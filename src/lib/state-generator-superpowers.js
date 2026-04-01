@@ -33,17 +33,21 @@ function buildSuperpowersRecentEntries(overviewSources, recentChangeSummaries, r
   ].slice(0, 2);
 }
 
-function buildSuperpowersPendingReviewItems(overviewSources) {
+function buildSuperpowersPendingReviewItems(overviewSources, workflowGuidance = null) {
   const workflow = overviewSources.superpowers?.workflow || {};
   if (!workflow.hasUnwrittenRepoChanges) {
     return [];
   }
 
+  const workflowStage = workflowGuidance?.workflowStage || "closeout_needed";
+  const recommendedNextAction = workflowGuidance?.recommendedNextAction || "write back closeout state";
+  const recommendedNextReason = workflowGuidance?.recommendedNextReason || "Repo-visible changes exist without a newer formal closeout record.";
+
   return [
     {
       id: "superpowers-writeback-drift",
       label: "Repo changed without a newer Superpowers closeout run",
-      detail: "Write back project_state.json and append a new runs/*.json record before treating the latest repo change as formally closed out.",
+      detail: `Current workflow stage: ${workflowStage}. ${recommendedNextReason} Recommended next action: ${recommendedNextAction}. Write back project_state.json and append a new runs/*.json record before treating the latest repo change as formally closed out.`,
       viewId: "instruction-center",
       severity: "high"
     }

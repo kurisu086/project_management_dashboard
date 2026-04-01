@@ -151,3 +151,27 @@ test("collectRepoChangeFallback reports a dirty tracked file as repo-visible cha
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+test("collectRepoChangeFallback ignores dashboard-managed control-plane paths", async () => {
+  const { root, repoPath } = await createTempRepo("dashboard-owned", {
+    "README.md": "# Dashboard-owned fixture\n",
+    "src/index.js": "module.exports = { value: 1 };\n"
+  });
+
+  try {
+    await writeWorkingTreeChange(repoPath, ".codex-control/project_state.json", "{\n  \"status\": \"draft\"\n}\n");
+    await writeWorkingTreeChange(repoPath, ".agents/skills/codex-project-handoff/SKILL.md", "# Skill\n");
+    await writeWorkingTreeChange(repoPath, "docs/superpowers/README.md", "# Dashboard-owned\n");
+    await writeWorkingTreeChange(repoPath, "AGENTS.md", "Dashboard-managed block\n");
+    await writeWorkingTreeChange(repoPath, ".gitignore", ".codex-control/\n");
+
+    const result = await collectRepoChangeFallback(repoPath);
+
+    assert.equal(result.workingTreeDirty, false);
+    assert.equal(result.hasRepoVisibleChanges, false);
+    assert.deepEqual(result.changedFiles, []);
+    assert.match(result.fallbackRepoChangeSummary, /clean working tree/i);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});

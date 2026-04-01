@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { pathToFileURL } = require("node:url");
 
 const ROOT = path.resolve(__dirname, "..");
 const TEST_DATA_DIR = path.join(ROOT, "tmp", "frontend-smoke-data");
@@ -28,10 +29,26 @@ async function main() {
     const homeHtml = await fetch(`${serverUrl}/`).then((response) => response.text());
     const appJs = await fs.readFile(path.join(ROOT, "public", "app.js"), "utf8");
     const appMainJs = await fs.readFile(path.join(ROOT, "public", "app-main.js"), "utf8");
+    const appShellJs = await fs.readFile(path.join(ROOT, "public", "app-shell.js"), "utf8");
     const appSessionJs = await fs.readFile(path.join(ROOT, "public", "app-session.js"), "utf8");
+    const appViewsCoreJs = await fs.readFile(path.join(ROOT, "public", "app-views-core.js"), "utf8");
+    const appViewsSharedJs = await fs.readFile(path.join(ROOT, "public", "app-views-shared.js"), "utf8");
+    const appViewsSuperpowersJs = await fs.readFile(path.join(ROOT, "public", "app-views-superpowers.js"), "utf8");
+    const appViewsWorkflowJs = await fs.readFile(path.join(ROOT, "public", "app-views-workflow.js"), "utf8");
     const appWorkbenchJs = await fs.readFile(path.join(ROOT, "public", "app-workbench.js"), "utf8");
     const appUtilsJs = await fs.readFile(path.join(ROOT, "public", "app-utils.js"), "utf8");
-    const combinedClientJs = [appJs, appMainJs, appSessionJs, appWorkbenchJs, appUtilsJs].join("\n");
+    const combinedClientJs = [
+      appJs,
+      appMainJs,
+      appShellJs,
+      appSessionJs,
+      appViewsCoreJs,
+      appViewsSharedJs,
+      appViewsSuperpowersJs,
+      appViewsWorkflowJs,
+      appWorkbenchJs,
+      appUtilsJs
+    ].join("\n");
 
     assert.ok(homeHtml.includes("diagram-overlay"), "home page should include diagram overlay shell");
     assert.ok(homeHtml.includes("pending-review-overlay"), "home page should include pending review overlay shell");
@@ -41,6 +58,10 @@ async function main() {
     assert.ok(
       combinedClientJs.includes("Codex Recovery Skill Prompt") || combinedClientJs.includes("已有项目恢复"),
       "client should expose recovery skill guidance"
+    );
+    assert.ok(
+      combinedClientJs.includes("workflowGuidance") || combinedClientJs.includes("Next Action") || combinedClientJs.includes("下一步动作"),
+      "client should include workflow guidance rendering support"
     );
     assert.ok(combinedClientJs.includes("function maybeOpenPendingReviewOverlay"), "client should define pending review overlay helpers");
     assert.ok(combinedClientJs.includes("function renderConflictPill"), "client should keep source inconsistency pill renderer");
@@ -111,6 +132,31 @@ async function main() {
     );
     assert.ok(Array.isArray(recovery.recovery.provisionalSummary.unresolved), "recovery flow should expose unresolved items");
 
+    const guidanceRepoPath = path.join(FIXTURE_ROOT, "workflow-guidance-smoke-repo");
+    await createGitFixtureRepo(guidanceRepoPath);
+    await fs.mkdir(path.join(guidanceRepoPath, "docs", "superpowers", "specs"), { recursive: true });
+    await fs.mkdir(path.join(guidanceRepoPath, "docs", "superpowers", "plans"), { recursive: true });
+    await fs.writeFile(path.join(guidanceRepoPath, "docs", "superpowers", "specs", "2026-04-02-smoke-spec.md"), "# Smoke Spec\n\nSmoke summary.\n", "utf8");
+    await fs.writeFile(path.join(guidanceRepoPath, "docs", "superpowers", "plans", "2026-04-02-smoke-plan.md"), "# Smoke Plan\n\nSmoke summary.\n", "utf8");
+    const guidanceProject = await requestJson(serverUrl, "/api/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        path: guidanceRepoPath,
+        name: "Workflow Guidance Smoke Repo",
+        useSuperpowers: true
+      }),
+      expectStatus: 201
+    });
+    createdProjectIds.add(guidanceProject.project.id);
+    const guidanceRefresh = await requestJson(serverUrl, `/api/projects/${guidanceProject.project.id}/refresh`, {
+      method: "POST"
+    });
+    assert.ok(
+      guidanceRefresh.summary.recommendedNextAction || guidanceRefresh.summary.recommendedNextSkill,
+      "detail payload should carry workflow guidance next action or recommended skill for the client"
+    );
+    await assertWorkflowViewRendering();
+
     const removed = await requestJson(serverUrl, `/api/projects/${recovery.project.id}`, {
       method: "DELETE"
     });
@@ -130,6 +176,85 @@ async function main() {
     await fs.rm(FIXTURE_ROOT, { recursive: true, force: true });
     await fs.rm(TEST_DATA_DIR, { recursive: true, force: true });
   }
+}
+
+async function assertWorkflowViewRendering() {
+  const moduleRoot = path.join(TEST_DATA_DIR, "frontend-module-sandbox");
+  await fs.rm(moduleRoot, { recursive: true, force: true });
+  await fs.mkdir(moduleRoot, { recursive: true });
+  await fs.cp(path.join(ROOT, "public"), moduleRoot, { recursive: true });
+  await fs.writeFile(path.join(moduleRoot, "package.json"), '{\n  "type": "module"\n}\n', "utf8");
+
+  const { renderCurrentView } = await import(`${pathToFileURL(path.join(moduleRoot, "app-views.js")).href}?t=${Date.now()}`);
+  const guidance = {
+    workflowStage: "handoff_needed",
+    recommendedNextAction: "prepare the handoff prompt",
+    recommendedNextSkill: "codex-project-handoff",
+    recommendedNextReason: "Workflow docs are ready enough for a handoff decision.",
+    recommendedNextAfter: "Run handoff, then start implementation if it passes.",
+    workflowBlockingItems: ["Workflow docs are ready enough for a handoff decision."]
+  };
+  const snapshot = {
+    summary: {
+      workflowStage: guidance.workflowStage,
+      recommendedNextAction: guidance.recommendedNextAction,
+      recommendedNextSkill: guidance.recommendedNextSkill,
+      recommendedNextReason: guidance.recommendedNextReason,
+      hasUnwrittenRepoChanges: false,
+      superpowersWorkflowState: "planned_not_executed",
+      latestExecutionEvidenceLabel: "Specs and plans are present, but no formal run was found.",
+      latestExecutionEvidenceSource: "none"
+    },
+    detail: {
+      views: {
+        instructionCenter: {
+          workflowGuidance: guidance,
+          primaryType: "准备 handoff",
+          currentActionState: "ready_for_implementation",
+          currentActionReasons: ["Workflow docs are ready enough for a handoff decision."],
+          secondaryConditions: [],
+          requiredContext: ["current work package goal"],
+          availableTypes: [
+            {
+              type: "handoff",
+              label: "Use handoff before implementation",
+              template: "Run codex-project-handoff."
+            }
+          ]
+        },
+        onboarding: {
+          onboardingMode: "superpowers",
+          workflowGuidance: guidance,
+          steps: ["Run node src/server.js"],
+          supportedPaths: ["D:\\repo\\my-project"],
+          unsupportedWays: ["Dragging a folder onto the page"],
+          actionBoundaries: [
+            {
+              label: "steady_state_readonly",
+              scope: "watcher / polling only read repo state",
+              mode: "repo_read_only"
+            }
+          ]
+        }
+      }
+    }
+  };
+  const ctx = {
+    state: {
+      activeView: "instruction-center",
+      activeSnapshot: snapshot
+    }
+  };
+
+  const instructionHtml = renderCurrentView(ctx);
+  assert.ok(instructionHtml.includes("handoff_needed"), "instruction center should render the workflow stage");
+  assert.ok(instructionHtml.includes("prepare the handoff prompt"), "instruction center should render the next action");
+  assert.ok(instructionHtml.includes("codex-project-handoff"), "instruction center should render the recommended skill");
+
+  ctx.state.activeView = "onboarding";
+  const onboardingHtml = renderCurrentView(ctx);
+  assert.ok(onboardingHtml.includes("superpowers"), "onboarding should render the onboarding mode");
+  assert.ok(onboardingHtml.includes("prepare the handoff prompt"), "onboarding should render the workflow next action");
 }
 
 async function requestJson(serverUrl, route, options = {}) {

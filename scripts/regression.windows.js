@@ -31,6 +31,7 @@ async function main() {
     await testNonGitDirectoryFailure();
     await testRefreshDoesNotWriteRepo(createdProjectIds);
     await testSuperpowersWritebackDrift(createdProjectIds);
+    await testSuperpowersDocsAndPlanRecoveryGuidance(createdProjectIds);
     await testSuperpowersOnboardingLifecycle(createdProjectIds);
     await testSuperpowersRemovalPreservesUserDocs(createdProjectIds);
     await testLegacyModuleBlueprintSchema(createdProjectIds);
@@ -234,6 +235,9 @@ async function testSuperpowersWritebackDrift(createdProjectIds) {
   assert.equal(refreshed.summary.latestExecutionEvidenceSource, "repo_fallback");
   assert.equal(refreshed.summary.hasUnwrittenRepoChanges, true);
   assert.equal(refreshed.summary.writebackDrift, "repo_ahead_of_writeback");
+  assert.equal(refreshed.summary.workflowStage, "closeout_needed");
+  assert.equal(refreshed.summary.recommendedNextAction, "write back closeout state");
+  assert.equal(refreshed.summary.recommendedNextSkill, "codex-task-closeout-writeback");
   assert.equal(refreshed.summary.linkedSpecTitle, "Feature Spec");
   assert.equal(refreshed.summary.linkedPlanTitle, "Feature Plan");
   assert.ok(
@@ -241,7 +245,50 @@ async function testSuperpowersWritebackDrift(createdProjectIds) {
     "pending review should flag missing closeout writeback"
   );
   assert.equal(refreshed.detail.views.instructionCenter.primaryType, "同步文档");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.workflowStage, "closeout_needed");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextAction, "write back closeout state");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextSkill, "codex-task-closeout-writeback");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.workflowStage, "closeout_needed");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextAction, "write back closeout state");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextSkill, "codex-task-closeout-writeback");
   assert.equal(refreshed.detail.views.recentChanges.entries[0].type, "repo_change_inferred");
+}
+
+async function testSuperpowersDocsAndPlanRecoveryGuidance(createdProjectIds) {
+  const repoPath = path.join(FIXTURE_ROOT, "superpowers-handoff-repo");
+  await createGitFixtureRepo(repoPath, {
+    "README.md": "# Superpowers Handoff Repo\n",
+    "src/index.js": "module.exports = { version: 1 };\n"
+  });
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "specs"), { recursive: true });
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "plans"), { recursive: true });
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "specs", "2026-04-02-feature.md"), "# Feature Spec\n\nSpec summary.\n", "utf8");
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "plans", "2026-04-02-feature.md"), "# Feature Plan\n\nPlan summary.\n", "utf8");
+
+  const created = await requestJson("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      path: repoPath,
+      name: "Superpowers Handoff Repo",
+      useSuperpowers: true
+    }),
+    expectStatus: 201
+  });
+  createdProjectIds.add(created.project.id);
+
+  const refreshed = await requestJson(`/api/projects/${created.project.id}/refresh`, {
+    method: "POST"
+  });
+
+  assert.equal(refreshed.summary.workflowStage, "recovery_needed");
+  assert.equal(refreshed.summary.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.summary.recommendedNextSkill, "codex-project-recovery-scan");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.workflowStage, "recovery_needed");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextSkill, "codex-project-recovery-scan");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.workflowStage, "recovery_needed");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextAction, "run the recovery scan");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextSkill, "codex-project-recovery-scan");
 }
 
 async function testSuperpowersOnboardingLifecycle(createdProjectIds) {
