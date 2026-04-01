@@ -48,6 +48,10 @@ const {
   getRepoLocalSkillPaths
 } = require("./repo-skill-templates");
 const {
+  buildProjectConfig,
+  buildWatchManifest
+} = require("./project-scaffold-metadata");
+const {
   collectRepoChangeFallback
 } = require("./repo-change-fallback");
 const {
@@ -63,9 +67,16 @@ const {
   normalizeProjectState,
   persistCacheArtifacts
 } = require("./state-generator");
+const {
+  buildSuperpowersScaffoldOwnership,
+  determineOnboardingMode,
+  ensureDashboardOwnedSuperpowersScaffold,
+  mergeSuperpowersScaffoldOwnership
+} = require("./superpowers-onboarding");
 
 async function ensureProjectScaffold(projectRecord) {
   const projectRoot = projectRecord.rootPath;
+  const onboardingMode = projectRecord.onboardingMode || determineOnboardingMode(projectRecord);
   const controlDir = path.join(projectRoot, CONTROL_DIR_NAME);
   const metaDir = path.join(controlDir, META_DIR_NAME);
   const runsDir = path.join(controlDir, RUNS_DIR_NAME);
@@ -78,11 +89,12 @@ async function ensureProjectScaffold(projectRecord) {
   await ensureDir(controlDir);
   await ensureDir(metaDir);
   await ensureDir(runsDir);
-  await ensureRepoLocalSkills(projectRoot);
+  await ensureRepoLocalSkills(projectRoot, { onboardingMode });
 
   const agentsText = await readTextIfExists(agentsPath);
   const nextAgentsText = upsertControlRules(agentsText || "", {
-    useSuperpowers: Boolean(projectRecord.useSuperpowers)
+    useSuperpowers: onboardingMode === "superpowers",
+    onboardingMode
   });
   if (nextAgentsText !== (agentsText || "")) {
     await writeTextAtomic(agentsPath, nextAgentsText);
@@ -100,9 +112,19 @@ async function ensureProjectScaffold(projectRecord) {
 
   await ensureOverviewSourceFiles(projectRecord);
 
-  if (!(await fileExists(projectConfigPath))) {
-    await writeJsonAtomic(projectConfigPath, buildProjectConfig(projectRecord));
-  }
+  const existingProjectConfig = await readJsonIfExists(projectConfigPath);
+  const docsOwnership = onboardingMode === "superpowers"
+    ? await ensureDashboardOwnedSuperpowersScaffold(projectRoot)
+    : buildSuperpowersScaffoldOwnership({});
+  const mergedDocsOwnership = mergeSuperpowersScaffoldOwnership(
+    existingProjectConfig && existingProjectConfig.dashboardOwnedSuperpowers,
+    docsOwnership
+  );
+
+  await writeJsonAtomic(projectConfigPath, buildProjectConfig({
+    ...projectRecord,
+    onboardingMode
+  }, mergedDocsOwnership));
 
   if (!(await fileExists(watchManifestPath))) {
     await writeJsonAtomic(watchManifestPath, buildWatchManifest(projectRecord));
@@ -630,72 +652,6 @@ function buildWatchTarget(filePath, stat) {
     path: filePath,
     exists: !!stat,
     mtime: formatTimestamp(stat && stat.mtime)
-  };
-}
-
-function buildProjectConfig(projectRecord) {
-  const controlDir = path.join(projectRecord.rootPath, CONTROL_DIR_NAME);
-  const localSkills = getRepoLocalSkillPaths(projectRecord.rootPath);
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    projectId: projectRecord.id,
-    name: projectRecord.name,
-    rootPath: projectRecord.rootPath,
-    controlDir,
-    layers: {
-      baseline: {
-        projectBrief: path.join(controlDir, PROJECT_BRIEF_FILE_NAME),
-        moduleMap: path.join(controlDir, MODULE_MAP_FILE_NAME),
-        techStack: path.join(controlDir, TECH_STACK_FILE_NAME),
-        gameDesign: path.join(controlDir, GAME_DESIGN_FILE_NAME),
-        decisionLog: path.join(controlDir, DECISION_LOG_FILE_NAME)
-      },
-      versionControl: {
-        versionState: path.join(controlDir, VERSION_STATE_FILE_NAME)
-      },
-      execution: {
-        projectState: path.join(controlDir, PROJECT_STATE_FILE_NAME),
-        runsDir: path.join(controlDir, RUNS_DIR_NAME)
-      }
-    },
-    supplementalSources: {
-      superpowersSpecsDir: path.join(projectRecord.rootPath, DOCS_DIR_NAME, SUPERPOWERS_DIR_NAME, SUPERPOWERS_SPECS_DIR_NAME),
-      superpowersPlansDir: path.join(projectRecord.rootPath, DOCS_DIR_NAME, SUPERPOWERS_DIR_NAME, SUPERPOWERS_PLANS_DIR_NAME)
-    },
-    workflow: {
-      useSuperpowers: Boolean(projectRecord.useSuperpowers)
-    },
-    localSkills: localSkills.map((item) => ({
-      name: item.name,
-      rootDir: item.rootDir,
-      files: item.files
-    })),
-    boundary: {
-      repoRole: "source-state-only",
-      derivedArtifacts: "dashboard-local-cache-only"
-    }
-  };
-}
-
-function buildWatchManifest(projectRecord) {
-  const controlDir = path.join(projectRecord.rootPath, CONTROL_DIR_NAME);
-  return {
-    schemaVersion: SCHEMA_VERSION,
-    mode: "repo-source-only",
-    watchTargets: [
-      path.join(projectRecord.rootPath, AGENTS_FILE_NAME),
-      path.join(controlDir, PROJECT_STATE_FILE_NAME),
-      path.join(controlDir, PROJECT_BRIEF_FILE_NAME),
-      path.join(controlDir, MODULE_MAP_FILE_NAME),
-      path.join(controlDir, TECH_STACK_FILE_NAME),
-      path.join(controlDir, GAME_DESIGN_FILE_NAME),
-      path.join(controlDir, VERSION_STATE_FILE_NAME),
-      path.join(controlDir, DECISION_LOG_FILE_NAME),
-      path.join(controlDir, RUNS_DIR_NAME, "*.json"),
-      path.join(projectRecord.rootPath, DOCS_DIR_NAME, SUPERPOWERS_DIR_NAME, SUPERPOWERS_SPECS_DIR_NAME),
-      path.join(projectRecord.rootPath, DOCS_DIR_NAME, SUPERPOWERS_DIR_NAME, SUPERPOWERS_PLANS_DIR_NAME)
-    ],
-    note: "Steady-state aggregation only reads AGENTS.md, .codex-control/**, and optional docs/superpowers/specs|plans. Repo-local skills live under .agents/skills/** but are not watched as project state. Derived current_state artifacts are generated under the dashboard local cache."
   };
 }
 

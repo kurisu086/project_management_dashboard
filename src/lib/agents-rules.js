@@ -52,10 +52,11 @@ function buildControlRulesBlock(options = {}) {
     "15. `/.codex-control/` and repo-local dashboard-installed skills are local control assets and should stay ignored by git."
   ];
 
-  if (options.useSuperpowers) {
+  if (options.onboardingMode === "superpowers" || (options.onboardingMode == null && options.useSuperpowers)) {
     lines.push(
-      "16. Superpowers mode is enabled for this repo. When `docs/superpowers/specs/**` or `docs/superpowers/plans/**` exist, future development must follow that workflow strictly instead of bypassing it with ad-hoc implementation decisions.",
-      "17. In Superpowers mode, treat specs and plans as workflow constraints and keep repo-side control files aligned with confirmed Superpowers decisions."
+      "16. Superpowers mode is enabled for this repo by dashboard onboarding. Treat `docs/superpowers/specs/**` and `docs/superpowers/plans/**` as workflow constraints, not optional notes, before implementation.",
+      "17. In Superpowers mode, handoff, recovery, and closeout must stay aligned with confirmed Superpowers decisions instead of repo guesses or ad-hoc shortcuts.",
+      "18. If repo facts and confirmed Superpowers decisions diverge, surface the mismatch explicitly before updating control files or implementation plans."
     );
   }
 

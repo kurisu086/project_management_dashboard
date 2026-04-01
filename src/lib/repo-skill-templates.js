@@ -102,9 +102,11 @@ Rules:
 - if a question remains unresolved, keep it under open_issues or residual_risks
 `;
 
-const HANDOFF_SKILL = `---
+function buildHandoffSkill(onboardingMode = "standard") {
+  const isSuperpowers = onboardingMode === "superpowers";
+  return `---
 name: codex-project-handoff
-description: Use when starting work in this repo, resuming the project, or before implementing a work package. Read AGENTS.md and .codex-control state first, decide whether the project is ready_for_implementation, and stop for clarification when product-defining information is still missing. Do not use for pure closeout/writeback.
+description: Use when starting work in this repo, resuming the project, or before implementing a work package. Read AGENTS.md and .codex-control state first, decide whether the project is ready_for_implementation, and stop for clarification when product-defining information is still missing.${isSuperpowers ? " In Superpowers mode, check specs/plans readiness before coding and treat confirmed Superpowers decisions as workflow constraints." : ""} Do not use for pure closeout/writeback.
 ---
 
 # Goal
@@ -121,7 +123,7 @@ Establish the current project state before implementation.
 - .codex-control/version_state.json
 - .codex-control/project_state.json
 - latest 1-3 files in .codex-control/runs/
-- references/project-control-protocol.md
+${isSuperpowers ? "- docs/superpowers/specs/*.md (if present)\n- docs/superpowers/plans/*.md (if present)\n" : ""}- references/project-control-protocol.md
 
 # Steps
 
@@ -131,7 +133,7 @@ Establish the current project state before implementation.
    - current work package
    - current slice -> module mapping
    - current action state and reasons
-2. Identify:
+${isSuperpowers ? "   - whether specs/plans readiness is sufficient for the work you are about to do\n" : ""}2. Identify:
    - missing baseline information
    - missing version definition
    - in-scope modules still left as unknown without good reason
@@ -140,7 +142,7 @@ Establish the current project state before implementation.
    - blockers
    - unresolved validation gaps
    - unresolved human decisions
-3. Decide whether the repo is:
+${isSuperpowers ? "   - missing or unconfirmed Superpowers specs/plans decisions that block implementation\n" : ""}3. Decide whether the repo is:
    - needs_baseline
    - needs_version_definition
    - needs_validation
@@ -153,7 +155,7 @@ Establish the current project state before implementation.
    - name the exact missing fields or confirmations
 5. If ready_for_implementation:
    - restate scope, non-scope, validation target, and allowed area before coding
-   - if module status / validation labels / risk labels are obviously stale or placeholder-only, fix source-state first or pair that cleanup with the next explicit closeout
+${isSuperpowers ? "   - confirm the relevant specs/plans are ready before implementation when workflow-defining work is in scope\n" : ""}   - if module status / validation labels / risk labels are obviously stale or placeholder-only, fix source-state first or pair that cleanup with the next explicit closeout
 
 # Stop conditions
 
@@ -161,7 +163,7 @@ Establish the current project state before implementation.
 - current version target is still unknown
 - current work package is not mapped clearly enough
 - direction-impacting ambiguity still exists
-
+${isSuperpowers ? "- Superpowers mode is active but specs/plans readiness is not confirmed for the intended work\n" : ""}
 # Never do
 
 - never invent version goals
@@ -169,11 +171,14 @@ Establish the current project state before implementation.
 - never write dashboard local cache files
 - never write current_state.json or current_state.md into repo
 - never silently keep placeholder module, validation, or risk labels when repo evidence already supports real names
-`;
+${isSuperpowers ? "- never bypass missing specs/plans readiness by presenting repo guesses as confirmed Superpowers decisions\n" : ""}`;
+}
 
-const CLOSEOUT_SKILL = `---
+function buildCloseoutSkill(onboardingMode = "standard") {
+  const isSuperpowers = onboardingMode === "superpowers";
+  return `---
 name: codex-task-closeout-writeback
-description: Use after completing a task in this repo to update .codex-control source-state files and append a run record. Write back project_state.json and runs/<timestamp>.json from repo-verifiable evidence. Do not use before implementation starts.
+description: Use after completing a task in this repo to update .codex-control source-state files and append a run record. Write back project_state.json and runs/<timestamp>.json from repo-verifiable evidence.${isSuperpowers ? " In Superpowers mode, keep writeback aligned with confirmed Superpowers decisions and call out any mismatch explicitly." : ""} Do not use before implementation starts.
 ---
 
 # Goal
@@ -186,7 +191,7 @@ Write back control-state updates after a completed task.
 - .codex-control/project_state.json
 - .codex-control/version_state.json
 - latest run file(s) in .codex-control/runs/
-- references/project-control-protocol.md
+${isSuperpowers ? "- docs/superpowers/specs/*.md (if present)\n- docs/superpowers/plans/*.md (if present)\n" : ""}- references/project-control-protocol.md
 - references/fixed-deliverables.md
 
 # Required outputs
@@ -213,7 +218,7 @@ Write back control-state updates after a completed task.
    - current slice -> module mapping
    - validation matrix status
    - go / no-go reasoning
-4. Name validation items and risk items clearly:
+${isSuperpowers ? "   - keep project_state.json and runs/<timestamp>.json aligned with confirmed Superpowers decisions\n" : ""}4. Name validation items and risk items clearly:
    - replace placeholder labels when repo evidence is sufficient
    - keep placeholder-like labels only when evidence is genuinely insufficient and explain why
 5. Append a new run record with the 10 required deliverables
@@ -224,18 +229,21 @@ Write back control-state updates after a completed task.
 - tests were not actually run but are being claimed
 - repo evidence is insufficient
 - a version-level change would require explicit human confirmation
-
+${isSuperpowers ? "- task evidence conflicts with confirmed Superpowers decisions and the mismatch has not been surfaced\n" : ""}
 # Never do
 
 - never fabricate tests or commands
 - never write dashboard local cache
 - never commit or recommend committing .codex-control
 - never leave stale placeholder validation or risk labels behind when the completed task already clarified them
-`;
+${isSuperpowers ? "- never let closeout writeback drift away from confirmed Superpowers decisions without explicitly recording the conflict\n" : ""}`;
+}
 
-const RECOVERY_SKILL = `---
+function buildRecoverySkill(onboardingMode = "standard") {
+  const isSuperpowers = onboardingMode === "superpowers";
+  return `---
 name: codex-project-recovery-scan
-description: Use when restoring a half-finished repo into the control system, rebuilding the project profile, or filling missing .codex-control baseline/version files from repo facts. Scan repo-visible evidence, write unknown or needs_confirmation when evidence is incomplete, and do not modify business code.
+description: Use when restoring a half-finished repo into the control system, rebuilding the project profile, or filling missing .codex-control baseline/version files from repo facts. Scan repo-visible evidence, write unknown or needs_confirmation when evidence is incomplete, and do not modify business code.${isSuperpowers ? " In Superpowers mode, never present repo guesses as confirmed design decisions." : ""}
 ---
 
 # Goal
@@ -252,7 +260,7 @@ Recover project understanding from an existing repo.
 - major module directories
 - tests
 - recent change clues
-- references/project-control-protocol.md
+${isSuperpowers ? "- docs/superpowers/specs/*.md (if present)\n- docs/superpowers/plans/*.md (if present)\n" : ""}- references/project-control-protocol.md
 - references/fixed-deliverables.md
 
 # Outputs
@@ -271,7 +279,7 @@ Recovery quality bar:
 - do not leave validation_matrix as generic "Validation item 1/2/3" placeholders when repo evidence already points to concrete verification targets
 - do not leave risk titles as generic placeholders when repo evidence already points to concrete risk scope
 - record needs_confirmation only for gaps that repo evidence truly cannot settle
-
+${isSuperpowers ? "- never upgrade repo guesses into confirmed Superpowers design decisions without explicit evidence\n" : ""}
 # Rules
 
 - facts first
@@ -287,20 +295,22 @@ Recovery quality bar:
 4. key blockers / risks
 5. questions needing confirmation
 6. which module statuses, validation items, and risk titles were named from repo evidence
-`;
+${isSuperpowers ? "7. which Superpowers decisions were confirmed versus still inferred from repo evidence\n" : ""}`;
+}
 
-const SKILL_DEFINITIONS = [
+function buildSkillDefinitions(onboardingMode = "standard") {
+  return [
   {
     name: LOCAL_SKILL_NAMES[0],
     files: {
-      "SKILL.md": HANDOFF_SKILL,
+      "SKILL.md": buildHandoffSkill(onboardingMode),
       "references/project-control-protocol.md": COMMON_PROTOCOL_REFERENCE
     }
   },
   {
     name: LOCAL_SKILL_NAMES[1],
     files: {
-      "SKILL.md": CLOSEOUT_SKILL,
+      "SKILL.md": buildCloseoutSkill(onboardingMode),
       "references/project-control-protocol.md": COMMON_PROTOCOL_REFERENCE,
       "references/fixed-deliverables.md": COMMON_DELIVERABLES_REFERENCE
     }
@@ -308,18 +318,20 @@ const SKILL_DEFINITIONS = [
   {
     name: LOCAL_SKILL_NAMES[2],
     files: {
-      "SKILL.md": RECOVERY_SKILL,
+      "SKILL.md": buildRecoverySkill(onboardingMode),
       "references/project-control-protocol.md": COMMON_PROTOCOL_REFERENCE,
       "references/fixed-deliverables.md": COMMON_DELIVERABLES_REFERENCE
     }
   }
-];
+  ];
+}
 
-async function ensureRepoLocalSkills(projectRoot) {
+async function ensureRepoLocalSkills(projectRoot, options = {}) {
   const skillsRoot = path.join(projectRoot, AGENTS_DIR_NAME, SKILLS_DIR_NAME);
+  const skillDefinitions = buildSkillDefinitions(options.onboardingMode || "standard");
   await ensureDir(skillsRoot);
 
-  for (const skill of SKILL_DEFINITIONS) {
+  for (const skill of skillDefinitions) {
     for (const [relativePath, content] of Object.entries(skill.files)) {
       const targetPath = path.join(skillsRoot, skill.name, relativePath);
       const existing = await readTextIfExists(targetPath);
@@ -331,7 +343,7 @@ async function ensureRepoLocalSkills(projectRoot) {
 }
 
 function getRepoLocalSkillPaths(projectRoot) {
-  return SKILL_DEFINITIONS.map((skill) => ({
+  return buildSkillDefinitions().map((skill) => ({
     name: skill.name,
     rootDir: path.join(projectRoot, AGENTS_DIR_NAME, SKILLS_DIR_NAME, skill.name),
     files: Object.keys(skill.files).map((relativePath) => path.join(projectRoot, AGENTS_DIR_NAME, SKILLS_DIR_NAME, skill.name, relativePath))
