@@ -32,6 +32,7 @@ async function main() {
     await testRefreshDoesNotWriteRepo(createdProjectIds);
     await testSuperpowersWritebackDrift(createdProjectIds);
     await testSuperpowersOnboardingLifecycle(createdProjectIds);
+    await testSuperpowersRemovalPreservesUserDocs(createdProjectIds);
     await testLegacyModuleBlueprintSchema(createdProjectIds);
     await testWorkbenchFlows(createdProjectIds);
     await testRemoveProjectCleansControlFiles();
@@ -280,6 +281,44 @@ async function testSuperpowersOnboardingLifecycle(createdProjectIds) {
   assert.ok(
     removed.removed.removedRepoArtifacts.some((item) => item.action === "dashboard_owned_superpowers_file_deleted"),
     "cleanup should report owned Superpowers file deletion"
+  );
+}
+
+async function testSuperpowersRemovalPreservesUserDocs(createdProjectIds) {
+  const repoPath = path.join(FIXTURE_ROOT, "superpowers-user-owned-docs-repo");
+  await createGitFixtureRepo(repoPath);
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "specs"), { recursive: true });
+  await fs.mkdir(path.join(repoPath, "docs", "superpowers", "plans"), { recursive: true });
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "specs", "user-spec.md"), "# User Spec\n", "utf8");
+  await fs.writeFile(path.join(repoPath, "docs", "superpowers", "plans", "user-plan.md"), "# User Plan\n", "utf8");
+
+  const created = await requestJson("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      path: repoPath,
+      name: "Superpowers User Docs Repo",
+      useSuperpowers: true
+    }),
+    expectStatus: 201
+  });
+  createdProjectIds.add(created.project.id);
+
+  const removed = await requestJson(`/api/projects/${created.project.id}`, {
+    method: "DELETE"
+  });
+
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "README.md")), false);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "specs", ".gitkeep")), false);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "plans", ".gitkeep")), false);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "specs", "user-spec.md")), true);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "plans", "user-plan.md")), true);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "specs")), true);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "plans")), true);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers")), true);
+  assert.equal(await exists(path.join(repoPath, "docs")), true);
+  assert.ok(
+    removed.removed.removedRepoArtifacts.some((item) => item.action === "dashboard_owned_superpowers_file_deleted"),
+    "cleanup should report dashboard-owned Superpowers file deletion when user docs remain"
   );
 }
 

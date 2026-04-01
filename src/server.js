@@ -51,21 +51,12 @@ const {
   removeProjectFromWorkbench
 } = require("./lib/server-workbench");
 const {
-  CONTROL_DIR_NAME,
-  AGENTS_FILE_NAME,
-  CACHE_DIR,
-  GITIGNORE_FILE_NAME
+  CACHE_DIR
 } = require("./lib/constants");
-const {
-  removeControlRules
-} = require("./lib/agents-rules");
-const {
-  removeControlGitignore
-} = require("./lib/gitignore-rules");
-const {
-  getRepoLocalSkillPaths
-} = require("./lib/repo-skill-templates");
 const { determineOnboardingMode } = require("./lib/superpowers-onboarding");
+const {
+  cleanupProjectControlFiles
+} = require("./lib/project-removal");
 
 const registryState = {
   registry: null,
@@ -496,7 +487,9 @@ async function removeProjectById(projectId) {
   }
 
   watchManager.detach(projectId);
-  const cleanup = await cleanupProjectControlFiles(projectRecord);
+  const cleanup = await cleanupProjectControlFiles(projectRecord, {
+    cacheDir: path.join(CACHE_DIR, projectRecord.id)
+  });
 
   registryState.snapshots.delete(projectId);
   removeRegistryProject(registryState.registry, projectId);
@@ -535,124 +528,6 @@ async function removeProjectById(projectId) {
     workbench: buildWorkbenchResponse(registryState)
   };
 }
-
-
-async function cleanupProjectControlFiles(projectRecord) {
-  const removedRepoArtifacts = [];
-  const removedLocalArtifacts = [];
-  const controlDir = path.join(projectRecord.rootPath, CONTROL_DIR_NAME);
-  const agentsPath = path.join(projectRecord.rootPath, AGENTS_FILE_NAME);
-  const gitignorePath = path.join(projectRecord.rootPath, GITIGNORE_FILE_NAME);
-  const cacheDir = path.join(CACHE_DIR, projectRecord.id);
-  const localSkills = getRepoLocalSkillPaths(projectRecord.rootPath);
-
-  const agentsText = await fs.readFile(agentsPath, "utf8").catch(() => null);
-  if (agentsText !== null) {
-    const nextAgents = removeControlRules(agentsText);
-    if (nextAgents !== agentsText.trim()) {
-      if (nextAgents) {
-        await fs.writeFile(agentsPath, `${nextAgents}\n`, "utf8");
-        removedRepoArtifacts.push({
-          path: agentsPath,
-          action: "rules_block_removed"
-        });
-      } else {
-        await fs.rm(agentsPath, { force: true });
-        removedRepoArtifacts.push({
-          path: agentsPath,
-          action: "empty_agents_deleted"
-        });
-      }
-    }
-  }
-
-  const gitignoreText = await fs.readFile(gitignorePath, "utf8").catch(() => null);
-  if (gitignoreText !== null) {
-    const nextGitignore = removeControlGitignore(gitignoreText);
-    if (nextGitignore !== gitignoreText.trim()) {
-      if (nextGitignore) {
-        await fs.writeFile(gitignorePath, `${nextGitignore}\n`, "utf8");
-        removedRepoArtifacts.push({
-          path: gitignorePath,
-          action: "gitignore_control_block_removed"
-        });
-      } else {
-        await fs.rm(gitignorePath, { force: true });
-        removedRepoArtifacts.push({
-          path: gitignorePath,
-          action: "empty_gitignore_deleted"
-        });
-      }
-    }
-  }
-
-  const controlExists = await fs.stat(controlDir).then(() => true).catch(() => false);
-  if (controlExists) {
-    await fs.rm(controlDir, { recursive: true, force: true });
-    removedRepoArtifacts.push({
-      path: controlDir,
-      action: "control_dir_deleted"
-    });
-  }
-
-  for (const skill of localSkills) {
-    const skillExists = await fs.stat(skill.rootDir).then(() => true).catch(() => false);
-    if (skillExists) {
-      await fs.rm(skill.rootDir, { recursive: true, force: true });
-      removedRepoArtifacts.push({
-        path: skill.rootDir,
-        action: "local_skill_deleted"
-      });
-    }
-  }
-
-  await removeEmptyRepoSkillParents(projectRecord.rootPath, removedRepoArtifacts);
-
-  const cacheExists = await fs.stat(cacheDir).then(() => true).catch(() => false);
-  if (cacheExists) {
-    await fs.rm(cacheDir, { recursive: true, force: true });
-    removedLocalArtifacts.push({
-      path: cacheDir,
-      action: "cache_deleted"
-    });
-  }
-
-  return {
-    removedRepoArtifacts,
-    removedLocalArtifacts
-  };
-}
-
-async function removeEmptyRepoSkillParents(projectRoot, removedRepoArtifacts) {
-  const skillsDir = path.join(projectRoot, ".agents", "skills");
-  const agentsDir = path.join(projectRoot, ".agents");
-
-  if (await isDirEmpty(skillsDir)) {
-    await fs.rm(skillsDir, { recursive: true, force: true });
-    removedRepoArtifacts.push({
-      path: skillsDir,
-      action: "empty_skills_dir_deleted"
-    });
-  }
-
-  if (await isDirEmpty(agentsDir)) {
-    await fs.rm(agentsDir, { recursive: true, force: true });
-    removedRepoArtifacts.push({
-      path: agentsDir,
-      action: "empty_agents_dir_deleted"
-    });
-  }
-}
-
-async function isDirEmpty(targetPath) {
-  try {
-    const entries = await fs.readdir(targetPath);
-    return entries.length === 0;
-  } catch {
-    return false;
-  }
-}
-
 async function refreshProjectById(projectId) {
   const projectRecord = registryState.registry.projects.find((item) => item.id === projectId);
   if (!projectRecord) {
