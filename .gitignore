@@ -8,5 +8,6 @@ data/project-registry.json
 data/*.tmp
 
 tmp/
+.worktrees/
 
 *.log
