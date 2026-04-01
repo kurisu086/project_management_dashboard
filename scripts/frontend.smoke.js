@@ -111,6 +111,30 @@ async function main() {
     );
     assert.ok(Array.isArray(recovery.recovery.provisionalSummary.unresolved), "recovery flow should expose unresolved items");
 
+    const guidanceRepoPath = path.join(FIXTURE_ROOT, "workflow-guidance-smoke-repo");
+    await createGitFixtureRepo(guidanceRepoPath);
+    await fs.mkdir(path.join(guidanceRepoPath, "docs", "superpowers", "specs"), { recursive: true });
+    await fs.mkdir(path.join(guidanceRepoPath, "docs", "superpowers", "plans"), { recursive: true });
+    await fs.writeFile(path.join(guidanceRepoPath, "docs", "superpowers", "specs", "2026-04-02-smoke-spec.md"), "# Smoke Spec\n\nSmoke summary.\n", "utf8");
+    await fs.writeFile(path.join(guidanceRepoPath, "docs", "superpowers", "plans", "2026-04-02-smoke-plan.md"), "# Smoke Plan\n\nSmoke summary.\n", "utf8");
+    const guidanceProject = await requestJson(serverUrl, "/api/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        path: guidanceRepoPath,
+        name: "Workflow Guidance Smoke Repo",
+        useSuperpowers: true
+      }),
+      expectStatus: 201
+    });
+    createdProjectIds.add(guidanceProject.project.id);
+    const guidanceRefresh = await requestJson(serverUrl, `/api/projects/${guidanceProject.project.id}/refresh`, {
+      method: "POST"
+    });
+    assert.ok(
+      guidanceRefresh.summary.recommendedNextAction || guidanceRefresh.summary.recommendedNextSkill,
+      "frontend should surface workflow guidance next action or recommended skill"
+    );
+
     const removed = await requestJson(serverUrl, `/api/projects/${recovery.project.id}`, {
       method: "DELETE"
     });
