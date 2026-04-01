@@ -283,6 +283,12 @@ async function testSuperpowersDocsAndPlanNoDriftGuidance(createdProjectIds) {
   assert.equal(refreshed.summary.workflowStage, "handoff_needed");
   assert.equal(refreshed.summary.recommendedNextAction, "prepare the handoff prompt");
   assert.equal(refreshed.summary.recommendedNextSkill, "codex-project-handoff");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.workflowStage, "handoff_needed");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextAction, "prepare the handoff prompt");
+  assert.equal(refreshed.detail.views.instructionCenter.workflowGuidance.recommendedNextSkill, "codex-project-handoff");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.workflowStage, "handoff_needed");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextAction, "prepare the handoff prompt");
+  assert.equal(refreshed.detail.views.onboarding.workflowGuidance.recommendedNextSkill, "codex-project-handoff");
 }
 
 async function testSuperpowersOnboardingLifecycle(createdProjectIds) {

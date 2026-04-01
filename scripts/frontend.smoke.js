@@ -42,6 +42,10 @@ async function main() {
       combinedClientJs.includes("Codex Recovery Skill Prompt") || combinedClientJs.includes("已有项目恢复"),
       "client should expose recovery skill guidance"
     );
+    assert.ok(
+      combinedClientJs.includes("workflowGuidance") || combinedClientJs.includes("Next Action") || combinedClientJs.includes("下一步动作"),
+      "client should include workflow guidance rendering support"
+    );
     assert.ok(combinedClientJs.includes("function maybeOpenPendingReviewOverlay"), "client should define pending review overlay helpers");
     assert.ok(combinedClientJs.includes("function renderConflictPill"), "client should keep source inconsistency pill renderer");
     assert.ok(
@@ -132,7 +136,7 @@ async function main() {
     });
     assert.ok(
       guidanceRefresh.summary.recommendedNextAction || guidanceRefresh.summary.recommendedNextSkill,
-      "frontend should surface workflow guidance next action or recommended skill"
+      "detail payload should carry workflow guidance next action or recommended skill for the client"
     );
 
     const removed = await requestJson(serverUrl, `/api/projects/${recovery.project.id}`, {
