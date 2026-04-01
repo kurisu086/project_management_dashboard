@@ -145,7 +145,7 @@ function runGit(args, cwd) {
     throw new Error(`git ${args.join(" ")} failed: ${formatGitFailure(result)}`);
   }
 
-  return (result.stdout || "").trim();
+  return String(result.stdout || "").trimEnd();
 }
 
 function formatGitFailure(result) {
