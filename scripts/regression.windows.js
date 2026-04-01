@@ -31,6 +31,7 @@ async function main() {
     await testNonGitDirectoryFailure();
     await testRefreshDoesNotWriteRepo(createdProjectIds);
     await testSuperpowersWritebackDrift(createdProjectIds);
+    await testSuperpowersOnboardingLifecycle(createdProjectIds);
     await testLegacyModuleBlueprintSchema(createdProjectIds);
     await testWorkbenchFlows(createdProjectIds);
     await testRemoveProjectCleansControlFiles();
@@ -240,6 +241,46 @@ async function testSuperpowersWritebackDrift(createdProjectIds) {
   );
   assert.equal(refreshed.detail.views.instructionCenter.primaryType, "同步文档");
   assert.equal(refreshed.detail.views.recentChanges.entries[0].type, "repo_change_inferred");
+}
+
+async function testSuperpowersOnboardingLifecycle(createdProjectIds) {
+  const repoPath = path.join(FIXTURE_ROOT, "superpowers-onboarding-repo");
+  await createGitFixtureRepo(repoPath);
+
+  const created = await requestJson("/api/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      path: repoPath,
+      name: "Superpowers Onboarding Repo",
+      useSuperpowers: true
+    }),
+    expectStatus: 201
+  });
+  createdProjectIds.add(created.project.id);
+
+  assert.equal(created.project.onboardingMode, "superpowers");
+  assert.ok((await safeReadText(path.join(repoPath, "AGENTS.md"))).includes("Superpowers mode is enabled"));
+  assert.ok(await exists(path.join(repoPath, ".agents", "skills", "codex-project-handoff", "SKILL.md")));
+  assert.ok(await exists(path.join(repoPath, "docs", "superpowers", "README.md")));
+
+  const projectConfig = JSON.parse(
+    await fs.readFile(path.join(repoPath, ".codex-control", "meta", "project_config.json"), "utf8")
+  );
+  assert.equal(projectConfig.workflow.onboardingMode, "superpowers");
+  assert.equal(projectConfig.dashboardOwnedSuperpowers.docsReadmeCreated, true);
+
+  const removed = await requestJson(`/api/projects/${created.project.id}`, {
+    method: "DELETE"
+  });
+
+  assert.equal(await exists(path.join(repoPath, ".codex-control")), false);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers", "README.md")), false);
+  assert.equal(await exists(path.join(repoPath, "docs", "superpowers")), false);
+  assert.ok(!(await safeReadText(path.join(repoPath, "AGENTS.md")))?.includes("Superpowers mode is enabled"));
+  assert.ok(
+    removed.removed.removedRepoArtifacts.some((item) => item.action === "dashboard_owned_superpowers_file_deleted"),
+    "cleanup should report owned Superpowers file deletion"
+  );
 }
 
 async function testWorkbenchFlows(createdProjectIds) {
