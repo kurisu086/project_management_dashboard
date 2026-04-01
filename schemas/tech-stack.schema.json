@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/tech-stack.schema.json",
+  "title": "Tech Stack Source File",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "frontendClient",
+    "rendering",
+    "uiTech",
+    "stateManagement",
+    "storage",
+    "buildRun",
+    "backend"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "kind": { "const": "tech_stack" },
+    "scanMeta": { "type": "object" },
+    "frontendClient": { "type": "object" },
+    "rendering": { "type": "object" },
+    "uiTech": { "type": "object" },
+    "stateManagement": { "type": "object" },
+    "storage": { "type": "object" },
+    "buildRun": { "type": "object" },
+    "backend": { "type": "object" },
+    "infrastructure": { "type": "array" },
+    "knownFacts": { "type": "array" },
+    "needsConfirmation": { "type": "array" }
+  },
+  "additionalProperties": true
+}

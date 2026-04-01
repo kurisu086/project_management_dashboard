@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/run-record.schema.json",
+  "title": "Codex Run Record",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "type",
+    "title",
+    "summary",
+    "createdAt",
+    "deliverables"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "runId": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "run",
+        "change_summary"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "taskId": {
+      "type": "string"
+    },
+    "deliverables": {
+      "type": "object",
+      "required": [
+        "change_summary",
+        "changed_files",
+        "executed_commands",
+        "test_results",
+        "open_issues",
+        "residual_risks",
+        "impact_scope",
+        "test_suggestions",
+        "documentation_updates",
+        "escalation_or_rollback"
+      ],
+      "properties": {
+        "change_summary": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "changed_files": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "executed_commands": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "test_results": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "open_issues": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "residual_risks": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "impact_scope": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "test_suggestions": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "documentation_updates": {
+          "$ref": "#/$defs/deliverableValue"
+        },
+        "escalation_or_rollback": {
+          "$ref": "#/$defs/deliverableValue"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "deliverableValue": {
+      "type": "object",
+      "required": [
+        "status",
+        "content"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "todo",
+            "in_progress",
+            "done",
+            "blocked",
+            "na"
+          ]
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

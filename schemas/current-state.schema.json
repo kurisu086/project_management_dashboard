@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/current-state.schema.json",
+  "title": "Current State Cache Snapshot",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "project",
+    "summary",
+    "detail"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "rootPath",
+        "sourceControlDir",
+        "cacheDir"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "rootPath": { "type": "string" },
+        "sourceControlDir": { "type": "string" },
+        "cacheDir": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "oneLineDefinition",
+        "projectType",
+        "finalGoal",
+        "versionTarget",
+        "currentStage",
+        "currentWorkPackage",
+        "lastUpdatedAt",
+        "riskLevel",
+        "conflictsCount",
+        "moduleCount"
+      ],
+      "properties": {
+        "oneLineDefinition": { "type": "string" },
+        "projectType": { "type": "string" },
+        "finalGoal": { "type": "string" },
+        "versionTarget": { "type": "string" },
+        "currentStage": { "type": "string" },
+        "currentWorkPackage": { "type": "string" },
+        "lastUpdatedAt": { "type": [ "string", "null" ] },
+        "riskLevel": { "type": "string" },
+        "currentActionState": { "type": "string" },
+        "currentActionReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "secondaryConditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "conflictsCount": { "type": "integer" },
+        "moduleCount": { "type": "integer" },
+        "superpowersStatus": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "detail": {
+      "type": "object",
+      "required": [
+        "baseline",
+        "versionControl",
+        "executionEvidence",
+        "navigation",
+        "views",
+        "conflicts",
+        "repoFacts",
+        "artifacts"
+      ],
+      "properties": {
+        "baseline": { "type": "object" },
+        "versionControl": { "type": "object" },
+        "executionEvidence": { "type": "object" },
+        "superpowers": { "type": "object" },
+        "currentActionState": { "type": "string" },
+        "currentActionReasons": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "secondaryConditions": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "entityRefs": { "type": "object" },
+        "actionBoundaries": { "type": "array" },
+        "visualizations": { "type": "object" },
+        "navigation": { "type": "array" },
+        "views": { "type": "object" },
+        "sourceMarkers": { "type": "array" },
+        "sourcePriority": { "type": "array" },
+        "conflicts": { "type": "array" },
+        "repoFacts": { "type": "object" },
+        "artifacts": { "type": "object" },
+        "layers": { "type": "object" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

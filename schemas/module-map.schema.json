@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/module-map.schema.json",
+  "title": "Module Map Source File",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "modules",
+    "relations",
+    "currentWorkPackageModule"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "kind": { "const": "module_map" },
+    "scanMeta": { "type": "object" },
+    "modules": { "type": "array" },
+    "relations": { "type": "array" },
+    "currentWorkPackageModule": { "type": "object" },
+    "knownFacts": { "type": "array" },
+    "needsConfirmation": { "type": "array" }
+  },
+  "additionalProperties": true
+}

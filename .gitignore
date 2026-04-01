@@ -1,0 +1,12 @@
+node_modules/
+
+data/cache/
+data/diagnostic-history.json
+data/intake-workbench.json
+data/operation-log.ndjson
+data/project-registry.json
+data/*.tmp
+
+tmp/
+
+*.log

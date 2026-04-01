@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/version-state.schema.json",
+  "title": "Version State",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "versionTarget",
+    "currentStage",
+    "currentWorkPackage",
+    "currentSliceModule"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "version_state"
+    },
+    "versionTarget": {
+      "type": "object"
+    },
+    "versionNonScope": {
+      "type": "array"
+    },
+    "definitionOfDone": {
+      "type": "array"
+    },
+    "keyRisks": {
+      "type": "array"
+    },
+    "blockers": {
+      "type": "array"
+    },
+    "verificationSummary": {
+      "type": "object"
+    },
+    "verificationMatrix": {
+      "type": "array"
+    },
+    "goNoGoStatus": {
+      "type": "object"
+    },
+    "currentStage": {
+      "type": "object"
+    },
+    "currentWorkPackage": {
+      "type": "object"
+    },
+    "currentSliceModule": {
+      "type": "object"
+    },
+    "knownFacts": {
+      "type": "array"
+    },
+    "declaredItems": {
+      "type": "array"
+    },
+    "supplementalItems": {
+      "type": "array"
+    },
+    "needsConfirmation": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

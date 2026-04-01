@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/game-design.schema.json",
+  "title": "Game Design Source File",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "isGameProject",
+    "gameCategory",
+    "coreGameplayLoop",
+    "progressionLoop",
+    "rewardLoop",
+    "offlineProgression",
+    "automation",
+    "visualDirection",
+    "primaryScreens",
+    "playerExperienceGoal",
+    "currentPlayableState"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "kind": { "const": "game_design" },
+    "scanMeta": { "type": "object" },
+    "isGameProject": { "type": "object" },
+    "gameCategory": { "type": "object" },
+    "coreGameplayLoop": { "type": "object" },
+    "progressionLoop": { "type": "object" },
+    "rewardLoop": { "type": "object" },
+    "offlineProgression": { "type": "object" },
+    "automation": { "type": "object" },
+    "visualDirection": { "type": "object" },
+    "primaryScreens": { "type": "object" },
+    "playerExperienceGoal": { "type": "object" },
+    "currentPlayableState": { "type": "object" },
+    "needsConfirmation": { "type": "array" }
+  },
+  "additionalProperties": true
+}

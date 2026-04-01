@@ -1,0 +1,264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local.codex-control/project-state.schema.json",
+  "title": "Project State",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "project",
+    "status",
+    "evidence"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "versionTarget",
+        "currentStage",
+        "currentWorkPackage",
+        "lastUpdatedAt",
+        "fixedDeliverables",
+        "riskFlags",
+        "consistency"
+      ],
+      "properties": {
+        "versionTarget": {
+          "$ref": "#/$defs/labeledValue"
+        },
+        "currentStage": {
+          "$ref": "#/$defs/labeledValue"
+        },
+        "currentWorkPackage": {
+          "$ref": "#/$defs/labeledValue"
+        },
+        "lastUpdatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fixedDeliverables": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "riskFlags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/riskFlag"
+          }
+        },
+        "consistency": {
+          "type": "object",
+          "required": [
+            "docs",
+            "code",
+            "tests"
+          ],
+          "properties": {
+            "docs": {
+              "$ref": "#/$defs/consistencyValue"
+            },
+            "code": {
+              "$ref": "#/$defs/consistencyValue"
+            },
+            "tests": {
+              "$ref": "#/$defs/consistencyValue"
+            },
+            "summary": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "history": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/historyEntry"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "labeledValue": {
+      "type": "object",
+      "required": [
+        "value",
+        "updatedAt"
+      ],
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "deliverable": {
+      "type": "object",
+      "required": [
+        "key",
+        "title",
+        "status"
+      ],
+      "properties": {
+        "key": {
+          "enum": [
+            "change_summary",
+            "changed_files",
+            "executed_commands",
+            "test_results",
+            "open_issues",
+            "residual_risks",
+            "impact_scope",
+            "test_suggestions",
+            "documentation_updates",
+            "escalation_or_rollback"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "todo",
+            "in_progress",
+            "done",
+            "blocked",
+            "na"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "riskFlag": {
+      "type": "object",
+      "required": [
+        "id",
+        "level",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "historyEntry": {
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "summary",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "run",
+            "diff"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "consistencyValue": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "aligned",
+            "drift",
+            "unknown"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

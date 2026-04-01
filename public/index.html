@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex 多项目只读总控</title>
+    <link rel="stylesheet" href="/styles.css?v=20260327a" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="app-header">
+        <div class="app-header-main">
+          <div>
+          <p class="eyebrow">Windows 11 Native First</p>
+          <h1>多项目只读型 Codex 总控模块</h1>
+          <p class="header-copy">
+            这里不只看当前切片，也集中呈现项目整体定义、模块地图、技术架构、游戏设计、当前阶段，以及下一条该如何给 Codex 下指令。
+          </p>
+          </div>
+          <div class="header-actions-bar">
+            <button id="open-import-guide" type="button" class="header-help-button">导入说明</button>
+          </div>
+        </div>
+      </header>
+
+      <div id="boot-status" class="boot-status" hidden>前端加载中...</div>
+
+      <div id="import-guide-overlay" class="import-guide-overlay" hidden>
+        <div class="import-guide-backdrop" data-import-guide-close></div>
+        <section class="import-guide-panel" role="dialog" aria-modal="true" aria-labelledby="import-guide-title">
+          <div class="import-guide-header">
+            <div>
+              <p class="eyebrow">Import Guide</p>
+              <h2 id="import-guide-title">导入项目说明</h2>
+              <p class="header-copy">导入前先看，先选对入口，再决定是去 GPT 整理、去项目 repo 的 Codex 会话扫描，还是回总控台确认写入。</p>
+            </div>
+            <button type="button" class="guide-close-button" data-import-guide-close>关闭</button>
+          </div>
+          <div class="import-guide-content">
+            <section class="guide-section">
+              <h3>导入前先看</h3>
+              <p>本总控台支持两种导入方式：</p>
+              <ul>
+                <li>新项目建档：适合还没正式开始、还没有完整 repo 状态、想先把项目目标和版本边界定清楚的项目。</li>
+                <li>已有项目建档：适合已有 repo、项目已经做了一部分、想恢复整体项目画像和当前切片位置的项目。</li>
+              </ul>
+            </section>
+            <section class="guide-section">
+              <h3>这套导入流程怎么工作</h3>
+              <p>总控台不会替你直接完成所有事情。它负责收集和展示关键项目信息、显示当前缺口、生成给 GPT 或 Codex 的标准提示词，并在你确认后，把项目信息写入项目控制文件。</p>
+              <p>其中：GPT 负责整理你脑子里模糊、但 repo 里扫不出来的信息；Codex 负责基于项目 repo 扫描、补全结构化项目状态；总控台负责承接、确认和展示结果。</p>
+              <p>Codex 会在工作前读取项目里的 <code>AGENTS.md</code>，而可复用工作流更适合放进 skills；这是官方推荐的定制方式。</p>
+            </section>
+            <section class="guide-section">
+              <h3>导入路径一：新项目建档</h3>
+              <p><strong>适用场景：</strong>你还没有正式推进这个项目，或者 repo 里还没有足够的信息让 Codex 可靠扫描。</p>
+              <p><strong>你需要做什么：</strong>先填写项目名称、项目一句话定义、终版目标、当前版本目标、当前版本不做什么、项目类型、目标用户 / 目标体验、技术偏好 / 技术约束。</p>
+              <p><strong>如果是游戏项目，再补：</strong>游戏分类、核心玩法一句话、画面方向、是否预期有后端 / 联网。</p>
+              <p><strong>如果你说不清：</strong>使用“GPT 辅助整理”。它不会直接写入项目，而是帮你把模糊想法整理成可确认的草案。</p>
+              <p><strong>完成后会发生什么：</strong>确认后的信息会写入项目控制文件，用于建立第一版项目画像和版本边界。这一步不修改业务代码，只建立项目控制材料。</p>
+              <p><strong>下一步：</strong>把系统生成的 Codex 补结构提示词发到项目 repo 的 Codex 会话里，让 Codex 补模块地图、第一工作包、验证口径草案、当前可动作状态。</p>
+            </section>
+            <section class="guide-section">
+              <h3>导入路径二：已有项目建档</h3>
+              <p><strong>适用场景：</strong>项目已经做了一部分，但现在看不清项目整体是什么、当前版本目标是什么、当前工作包在哪、当前切片和整体有什么关系、当前卡在哪。</p>
+              <p><strong>你需要做什么：</strong>填写最少恢复信息：项目路径、你当前对项目状态的粗判断、你当前最关心的问题。</p>
+              <p><strong>接入后会发生什么：</strong>总控台会先接入项目，并为你生成一段 Codex 扫描补全提示词。</p>
+              <p><strong>这段提示词怎么用：</strong>把它复制到项目 repo 的 Codex 会话中执行。Codex 会基于 repo 事实补齐项目定义草案、模块地图草案、技术栈草案、版本状态草案、当前切片位置、待确认问题。</p>
+              <p><strong>注意：</strong>Codex 扫描补全不是在总控台里执行，而是在项目 repo 的工作环境里执行。</p>
+            </section>
+            <section class="guide-section">
+              <h3>GPT 辅助整理是什么</h3>
+              <p><strong>适合这些情况：</strong>你知道项目想做什么，但说不清；你知道当前版本大概目标，但边界不清楚；你知道游戏大概方向，但玩法 / 风格 / 目标体验还没讲明白；你看完 Codex 扫描结果后，仍有一些关键字段拿不准。</p>
+              <p><strong>它做什么：</strong>帮你把模糊想法整理成可确认的结构化草案；帮你把 provisional 结果收敛成更清晰的描述；帮你形成后续可写入项目控制文件的答案。</p>
+              <p><strong>它不做什么：</strong>不直接修改项目代码，不直接写入项目控制文件，不替你拍板最终方向。</p>
+            </section>
+            <section class="guide-section">
+              <h3>Codex 扫描补全是什么</h3>
+              <p><strong>适合这些情况：</strong>repo 里已经有内容；需要把当前项目状态从 repo 中提取出来；需要补齐模块、技术栈、当前工作包、测试状态、变更摘要等结构化信息。</p>
+              <p><strong>它做什么：</strong>扫描 repo 和项目控制文件；读取 <code>AGENTS.md</code>；基于事实补全 <code>.codex-control/</code> 中的源状态文件；输出待确认问题；不确定的地方标记 <code>needs_confirmation</code>。</p>
+              <p><strong>它不做什么：</strong>不替你拍板产品目标，不擅自扩大范围，不在信息不足时脑补完整项目定义。</p>
+            </section>
+            <section class="guide-section">
+              <h3>三者分工</h3>
+              <div class="guide-grid three-col">
+                <article class="guide-card">
+                  <h4>总控台</h4>
+                  <ul>
+                    <li>入口</li>
+                    <li>表单</li>
+                    <li>状态展示</li>
+                    <li>缺口显示</li>
+                    <li>提示词生成</li>
+                    <li>结果确认</li>
+                    <li>项目控制信息写入</li>
+                  </ul>
+                </article>
+                <article class="guide-card">
+                  <h4>GPT</h4>
+                  <ul>
+                    <li>整理模糊信息</li>
+                    <li>帮你收敛项目定义、版本目标、边界和体验描述</li>
+                  </ul>
+                </article>
+                <article class="guide-card">
+                  <h4>Codex</h4>
+                  <ul>
+                    <li>基于 repo 扫描事实</li>
+                    <li>补全结构化项目状态</li>
+                    <li>更新项目控制文件</li>
+                    <li>把当前切片挂回整体</li>
+                  </ul>
+                </article>
+              </div>
+            </section>
+            <section class="guide-section">
+              <h3>你现在应该怎么选</h3>
+              <ul>
+                <li>选“新项目建档”：这个项目还没开始，repo 里没有足够事实，你需要先把方向和边界讲清楚。</li>
+                <li>选“已有项目建档”：这个项目已经做到一半，repo 里已经有代码和材料，你想快速恢复当前整体状态。</li>
+                <li>选“GPT 辅助整理”：你知道大概方向，但说不清；或者看完 provisional 结果后，仍有关键问题拿不准。</li>
+              </ul>
+            </section>
+            <section class="guide-section">
+              <h3>导入完成后，你应该看到什么</h3>
+              <ul>
+                <li>这项目是什么</li>
+                <li>终版目标是什么</li>
+                <li>当前版本目标是什么</li>
+                <li>当前切片在哪个模块</li>
+                <li>当前卡在哪</li>
+                <li>当前最适合的动作是什么</li>
+                <li>还缺哪些信息</li>
+                <li>下一条给 Codex 的指令该围绕什么组织</li>
+              </ul>
+            </section>
+            <section class="guide-section">
+              <h3>注意事项</h3>
+              <ul>
+                <li>总控台不会自动替你做产品拍板</li>
+                <li>GPT 不会自动成为项目真相来源</li>
+                <li>Codex 不应在信息不足时替你定义战略目标</li>
+                <li>日常自动聚合仍然只读项目 repo</li>
+                <li>只有你显式确认的动作，才会写入项目控制文件</li>
+              </ul>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div id="diagram-overlay" class="import-guide-overlay diagram-overlay" hidden>
+        <div class="import-guide-backdrop" data-diagram-overlay-close></div>
+        <section class="import-guide-panel diagram-overlay-panel" role="dialog" aria-modal="true" aria-labelledby="diagram-overlay-title">
+          <div class="import-guide-header">
+            <div>
+              <p class="eyebrow">Diagram View</p>
+              <h2 id="diagram-overlay-title">项目图视图</h2>
+              <p id="diagram-overlay-copy" class="header-copy">图页改为悬浮查看，方便保留主工作区上下文。</p>
+            </div>
+            <button type="button" class="guide-close-button" data-diagram-overlay-close>关闭</button>
+          </div>
+          <div id="diagram-overlay-content" class="import-guide-content"></div>
+        </section>
+      </div>
+
+      <div id="pending-review-overlay" class="import-guide-overlay pending-review-overlay" hidden>
+        <div class="import-guide-backdrop" data-pending-review-close></div>
+        <section class="import-guide-panel pending-review-panel" role="dialog" aria-modal="true" aria-labelledby="pending-review-title">
+          <div class="import-guide-header">
+            <div>
+              <p class="eyebrow">Pending Review</p>
+              <h2 id="pending-review-title">待确认项总览</h2>
+              <p id="pending-review-copy" class="header-copy">这里集中展示还需要你确认的问题、需要项目内 Codex 清理的控制文件问题，以及字段来源不一致的审查项。</p>
+            </div>
+            <button type="button" class="guide-close-button" data-pending-review-close>关闭</button>
+          </div>
+          <div id="pending-review-content" class="import-guide-content"></div>
+        </section>
+      </div>
+      <div id="copy-toast" class="copy-toast" hidden>已复制</div>
+      <section id="overview-strip" class="overview-strip"></section>
+
+      <main class="dashboard">
+        <aside class="sidebar">
+          <section class="sidebar-panel">
+            <div class="panel-title-row">
+              <h2>添加项目</h2>
+            </div>
+            <form id="project-form" class="project-form">
+              <div class="step-hint-block">
+                <strong>第 1 步</strong>
+                <small>先用这里把项目 repo 接入总控台。接入成功后，再去右侧选择“新项目建档”或“已有项目建档”。</small>
+              </div>
+              <label>
+                <span>Windows 本机 git repo 绝对路径</span>
+                <input id="project-path" name="path" placeholder="例如 C:\work\demo 或 D:\repo\my-project" required />
+              </label>
+              <p class="form-hint">仅支持 Windows 11 本机 Node 进程 + 盘符绝对路径。总控日常运行只读项目 repo。</p>
+
+              <label>
+                <span>显示名称（可选）</span>
+                <input id="project-name" name="name" placeholder="默认取目录名" />
+              </label>
+
+              <div class="button-row">
+                <button type="submit">添加项目</button>
+                <button id="refresh-all" type="button" class="ghost-button">刷新当前项目</button>
+              </div>
+              <p class="form-hint">“添加项目”只负责接入 repo；真正选择导入方式，请看右侧“接入与整理入口”。</p>
+              <p id="form-status" class="form-status"></p>
+            </form>
+          </section>
+
+          <section class="sidebar-panel project-list-panel">
+            <div class="panel-title-row">
+              <h2>项目列表</h2>
+            </div>
+            <div id="project-list" class="project-list"></div>
+          </section>
+        </aside>
+
+        <section class="detail-shell">
+          <div id="detail-header" class="detail-header-card"></div>
+          <nav id="view-nav" class="view-nav"></nav>
+          <div id="detail-content" class="detail-content"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="project-card-template">
+      <button class="project-card" type="button">
+        <div class="project-card-header">
+          <strong class="project-card-name"></strong>
+          <span class="project-card-risk"></span>
+        </div>
+        <p class="project-card-path"></p>
+        <p class="project-card-definition"></p>
+        <dl class="project-card-meta">
+          <div>
+            <dt>类型</dt>
+            <dd class="project-type"></dd>
+          </div>
+          <div>
+            <dt>阶段</dt>
+            <dd class="current-stage"></dd>
+          </div>
+          <div>
+            <dt>模块数</dt>
+            <dd class="module-count"></dd>
+          </div>
+          <div>
+            <dt>冲突</dt>
+            <dd class="conflicts-count"></dd>
+          </div>
+        </dl>
+      </button>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script type="module">
+      const bootStatus = document.getElementById("boot-status");
+
+      async function logBoot(status, details) {
+        try {
+          await fetch("/api/client-log", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              action: "frontend_bootstrap",
+              status,
+              details
+            }),
+            keepalive: true
+          });
+        } catch {}
+      }
+
+      function showBootError(message) {
+        bootStatus.hidden = false;
+        bootStatus.textContent = message;
+      }
+
+      window.addEventListener("error", (event) => {
+        showBootError(`前端运行失败：${event.message}`);
+        logBoot("error", {
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno
+        });
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        const reason = event.reason?.message || String(event.reason || "unknown");
+        showBootError(`前端异步失败：${reason}`);
+        logBoot("error", {
+          message: reason
+        });
+      });
+
+      try {
+        bootStatus.hidden = false;
+        bootStatus.textContent = "前端加载中...";
+        await import("/app.js?v=20260327b");
+        bootStatus.hidden = true;
+        await logBoot("ok", {
+          message: "frontend module loaded"
+        });
+      } catch (error) {
+        showBootError(`前端加载失败：${error.message}`);
+        await logBoot("error", {
+          message: error.message || "unknown"
+        });
+      }
+    </script>
+  </body>
+</html>
