@@ -31,8 +31,19 @@ This note summarizes how `project_management_dashboard` currently works so futur
 - Scaffolds repo-side control files for attached projects.
 - Injects repo-local skills and `AGENTS.md` / `.gitignore` control blocks.
 - Reads project snapshots from repo-side source state.
-- Produces project config and watch manifest files.
+- Delegates project config and watch-manifest metadata generation to focused scaffold helpers.
 - Collects repo-local skill facts plus git-backed repo-change fallback evidence for monitored repos.
+
+### `src/lib/superpowers-onboarding.js`
+
+- Normalizes `onboardingMode` from dashboard-declared attach settings.
+- Creates dashboard-owned `docs/superpowers/` scaffold files only when the repo does not already provide them.
+- Tracks ownership flags so later cleanup can distinguish dashboard-managed files from user-managed specs and plans.
+
+### `src/lib/project-scaffold-metadata.js`
+
+- Builds `project_config.json` and `watch_manifest.json` with stable path metadata.
+- Persists `workflow.onboardingMode` plus `dashboardOwnedSuperpowers` ownership flags inside project config.
 
 ### `src/lib/project-overview.js`
 
@@ -70,6 +81,7 @@ This note summarizes how `project_management_dashboard` currently works so futur
 - Drives preview and apply flows for new-project writeback.
 - Orchestrates recovery attach flows.
 - Bridges registry state, `addProject()`, and `refreshProject()` into workbench actions.
+- Returns stable `onboardingMode` in new-project and recovery payloads so prompt bundles and frontend state stay aligned with dashboard-declared Superpowers mode.
 
 ### `src/lib/intake-workbench.js`
 
@@ -85,6 +97,13 @@ This note summarizes how `project_management_dashboard` currently works so futur
 4. `readProjectSnapshot()` reads repo-side source state plus supplemental docs.
 5. `state-generator.js` derives dashboard summary and detail data, then writes local cache artifacts.
 6. `WatchManager` watches source files and refreshes derived cache on change.
+
+Project removal now follows a mirrored cleanup path:
+
+1. `removeProjectById()` delegates repo cleanup to `src/lib/project-removal.js`.
+2. `project-removal.js` removes dashboard-managed control files, repo-local skills, and cache.
+3. If `project_config.json` declares dashboard-owned Superpowers scaffold files, only those files are deleted.
+4. Parent `docs/superpowers/` directories are removed only when empty, so user-owned specs and plans survive monitor removal.
 
 ## Frontend Responsibility Map
 
@@ -147,6 +166,19 @@ This distinction is surfaced through:
 - pending-review items when repo changes exist without a newer closeout run
 - instruction-center guidance that switches to a sync-document flow before more implementation guidance
 - recent-changes and status-sources views that visibly separate formal run evidence from inferred repo drift
+
+## Superpowers Onboarding Path
+
+When the dashboard attaches or recovers a repo with `useSuperpowers=true`, the control plane now treats that as a declared onboarding mode instead of a repo-scan guess:
+
+1. `determineOnboardingMode()` maps dashboard attach intent to `standard` or `superpowers`.
+2. Workbench draft, recovery session, preview/apply responses, and attach payloads carry `onboardingMode`.
+3. `ensureProjectScaffold()` injects stronger Superpowers-aware `AGENTS.md` rules and repo-local workflow skills.
+4. If the repo does not already contain `docs/superpowers/` materials, the dashboard creates a minimal owned scaffold:
+   - `docs/superpowers/README.md`
+   - `docs/superpowers/specs/.gitkeep`
+   - `docs/superpowers/plans/.gitkeep`
+5. Ownership is written into `/.codex-control/meta/project_config.json` under `dashboardOwnedSuperpowers` so removal can clean only dashboard-managed files later.
 
 ## Tests
 
