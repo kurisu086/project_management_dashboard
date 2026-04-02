@@ -23,6 +23,7 @@ import {
   renderPendingReviewOverlay as renderPendingReviewOverlayState
 } from "./app-session.js";
 import { WORKFLOW_VIEW_IDS } from "./app-workflow-config.js";
+import { deriveNewProjectFilingState } from "./app-workbench.js";
 import {
   renderDetailHeader,
   renderImportGuideContent,
@@ -178,6 +179,10 @@ export function createApp() {
   }
 
   async function selectProject(projectId, options = {}) {
+    const previousProjectId = state.activeProjectId;
+    if (projectId && projectId !== previousProjectId) {
+      resetWorkbenchTransientState();
+    }
     state.activeProjectId = projectId;
     state.activeSnapshot = await fetchProjectDetail(projectId);
     state.runtime = state.activeSnapshot.runtime || state.runtime;
@@ -325,7 +330,7 @@ export function createApp() {
     if (action === "copy-new-project-gpt") return handleCopyNewProjectPrompt("gpt");
     if (action === "copy-new-project-codex") return handleCopyNewProjectPrompt("codex");
     if (action === "fill-new-project-template") {
-      state.newProjectStructuredInput = state.workbenchPayload?.prompts?.newProject?.structuredDraftTemplate || "";
+      state.newProjectStructuredInput = deriveNewProjectFilingState(state).prompts?.structuredDraftTemplate || "";
       return renderAll();
     }
     if (action === "apply-structured-draft") return handleApplyStructuredDraft();
@@ -372,6 +377,7 @@ export function createApp() {
     if (!window.confirm(`确认移除项目“${targetName}”吗？这会清理 repo 中的控制文件、AGENTS 规则块、本地 skills 与总控缓存。`)) return;
     await removeProject(projectId);
     if (state.activeProjectId === projectId) {
+      resetWorkbenchTransientState();
       state.activeProjectId = null;
       state.activeSnapshot = null;
       state.activeView = "new-project-filing";
@@ -425,7 +431,7 @@ export function createApp() {
   function handleApplyStructuredDraft() {
     try {
       const parsed = parseLooseJson(document.getElementById("structured-draft-input")?.value || "");
-      const draft = state.workbenchPayload?.workbench?.newProjectDraft || {};
+      const draft = readNewProjectDraftFromDom();
       state.workbenchPayload.workbench.newProjectDraft = { ...draft, ...parsed };
       state.newProjectStructuredStatus = { toneClass: "tone-success", message: "已把结构化结果回填到建档表单。" };
     } catch (error) {
@@ -504,6 +510,14 @@ export function createApp() {
   function setFormStatus(tone, message) {
     state.formStatus = { tone, message };
     renderAll();
+  }
+
+  function resetWorkbenchTransientState() {
+    state.newProjectStructuredInput = "";
+    state.newProjectStructuredStatus = null;
+    state.newProjectWritebackPreview = null;
+    state.newProjectWritebackResult = null;
+    state.recoveryResult = null;
   }
 
   function getViewById(viewId) {

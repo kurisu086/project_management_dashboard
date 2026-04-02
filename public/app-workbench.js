@@ -8,11 +8,14 @@ import {
 import { SUPERPOWERS_OPTIONS, WORKFLOW_LABELS, WORKFLOW_VIEW_IDS } from "./app-workflow-config.js";
 
 export function renderNewProjectFilingView(ctx) {
-  const draft = ctx.state.workbenchPayload?.workbench?.newProjectDraft || {};
-  const prompts = ctx.state.workbenchPayload?.prompts?.newProject || {};
-  const ownership = ctx.state.workbenchPayload?.ownershipGuide || {};
-  const preview = ctx.state.newProjectWritebackPreview?.preview || null;
-  const result = ctx.state.newProjectWritebackResult?.scan || null;
+  const {
+    draft,
+    prompts,
+    ownership,
+    preview,
+    result,
+    usingActiveProjectContext
+  } = deriveNewProjectFilingState(ctx.state);
 
   return `
     <div class="content-grid two-col">
@@ -56,6 +59,7 @@ export function renderNewProjectFilingView(ctx) {
             ["offline_only", "offline_only"]
           ])}
         </form>
+        ${usingActiveProjectContext ? renderContextResetHint(draft.projectName || draft.projectPath) : ""}
         ${renderSuperpowersHint(Boolean(draft.useSuperpowers))}
         <div class="button-row compact-row">
           <button type="button" class="secondary-action" data-action="save-new-project-draft">保存草稿</button>
@@ -107,6 +111,35 @@ export function renderNewProjectFilingView(ctx) {
       </section>
     </div>
   `;
+}
+
+export function deriveNewProjectFilingState(state = {}) {
+  const storedDraft = state.workbenchPayload?.workbench?.newProjectDraft || {};
+  const storedPrompts = state.workbenchPayload?.prompts?.newProject || {};
+  const ownership = state.workbenchPayload?.ownershipGuide || {};
+  const preview = state.newProjectWritebackPreview?.preview || null;
+  const result = state.newProjectWritebackResult?.scan || null;
+  const activeProject = getActiveProjectContext(state);
+
+  if (!activeProject || isDraftBoundToActiveProject(storedDraft, activeProject)) {
+    return {
+      draft: storedDraft,
+      prompts: storedPrompts,
+      ownership,
+      preview,
+      result,
+      usingActiveProjectContext: false
+    };
+  }
+
+  return {
+    draft: buildContextualDraft(activeProject),
+    prompts: {},
+    ownership,
+    preview: null,
+    result: null,
+    usingActiveProjectContext: true
+  };
 }
 
 export function renderExistingProjectRecoveryView(ctx) {
@@ -228,6 +261,15 @@ function renderSuperpowersHint(enabled) {
   `;
 }
 
+function renderContextResetHint(projectLabel) {
+  return `
+    <div class="template-card section-spacer">
+      <strong>当前项目上下文已刷新</strong>
+      <p class="inline-subcopy">已切到 ${escapeHtml(projectLabel || "当前项目")} 的建档上下文。上一项目的草稿、预览和写入结果不会继续沿用到这里。</p>
+    </div>
+  `;
+}
+
 function renderOwnershipGuide(ownership) {
   return `
     <section class="template-card">
@@ -270,4 +312,60 @@ function renderWritebackResult(result) {
 
 function stringifyBoolean(value) {
   return value ? "true" : "false";
+}
+
+function getActiveProjectContext(state = {}) {
+  const activeSnapshot = state.activeSnapshot;
+  if (!activeSnapshot?.project) {
+    return null;
+  }
+
+  return {
+    projectId: activeSnapshot.project.id || null,
+    projectPath: activeSnapshot.project.rootPath || "",
+    projectName: activeSnapshot.project.name || "",
+    useSuperpowers: activeSnapshot.project.onboardingMode === "superpowers" || Boolean(activeSnapshot.project.useSuperpowers),
+    onboardingMode: activeSnapshot.project.onboardingMode || "standard"
+  };
+}
+
+function isDraftBoundToActiveProject(draft = {}, activeProject) {
+  if (!activeProject) {
+    return true;
+  }
+  if (draft.attachedProjectId && activeProject.projectId) {
+    return draft.attachedProjectId === activeProject.projectId;
+  }
+  if (draft.projectPath && activeProject.projectPath) {
+    return normalizePath(draft.projectPath) === normalizePath(activeProject.projectPath);
+  }
+  return !draft.projectPath && !draft.projectName;
+}
+
+function buildContextualDraft(activeProject) {
+  return {
+    projectPath: activeProject.projectPath || "",
+    projectName: activeProject.projectName || "",
+    oneLineDefinition: "",
+    finalGoal: "",
+    currentVersionTarget: "",
+    currentVersionNonScope: "",
+    projectType: "unknown",
+    targetUsers: "",
+    targetExperience: "",
+    techPreferences: "",
+    techConstraints: "",
+    useSuperpowers: activeProject.useSuperpowers,
+    onboardingMode: activeProject.onboardingMode,
+    gameCategory: "",
+    coreGameplay: "",
+    visualDirection: "",
+    backendExpectation: "unknown",
+    networkingExpectation: "unknown",
+    attachedProjectId: activeProject.projectId || null
+  };
+}
+
+function normalizePath(value) {
+  return String(value || "").trim().replaceAll("/", "\\").toLowerCase();
 }

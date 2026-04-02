@@ -2,6 +2,7 @@ import { isDiagramView, resolveViewKey } from "./app-config.js";
 import { renderDiagramCollectionView } from "./app-diagrams.js";
 import {
   renderRecentChangesView,
+  renderRecentEntries,
   renderStatusSourcesView,
   renderSuperpowersDriftHint,
   renderSuperpowersWorkflowSummary
@@ -26,9 +27,11 @@ import {
   displayRiskTitle,
   displayValidationLabel,
   escapeHtml,
+  getFieldValue,
   renderFieldRow,
   renderKeyValueRows,
   renderRiskPill,
+  renderSourcePill,
   renderStatusPill,
   renderTag
 } from "./app-utils.js";

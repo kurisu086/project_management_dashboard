@@ -116,7 +116,7 @@ export function renderStatusSourcesView(ctx, view) {
   `;
 }
 
-function renderRecentEntries(entries) {
+export function renderRecentEntries(entries) {
   const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
   if (!list.length) {
     return buildEmptyState("当前没有最近变更摘要。");

@@ -186,6 +186,7 @@ async function assertWorkflowViewRendering() {
   await fs.writeFile(path.join(moduleRoot, "package.json"), '{\n  "type": "module"\n}\n', "utf8");
 
   const { renderCurrentView } = await import(`${pathToFileURL(path.join(moduleRoot, "app-views.js")).href}?t=${Date.now()}`);
+  const { renderNewProjectFilingView } = await import(`${pathToFileURL(path.join(moduleRoot, "app-workbench.js")).href}?t=${Date.now()}`);
   const guidance = {
     workflowStage: "handoff_needed",
     recommendedNextAction: "prepare the handoff prompt",
@@ -255,6 +256,107 @@ async function assertWorkflowViewRendering() {
   const onboardingHtml = renderCurrentView(ctx);
   assert.ok(onboardingHtml.includes("superpowers"), "onboarding should render the onboarding mode");
   assert.ok(onboardingHtml.includes("prepare the handoff prompt"), "onboarding should render the workflow next action");
+
+  ctx.state.activeView = "modules";
+  ctx.state.activeSnapshot.detail.views.modules = {
+    modules: [
+      {
+        name: "Shell",
+        responsibility: "Render the dashboard shell.",
+        status: "active",
+        sourceKind: "declared"
+      }
+    ],
+    relations: [],
+    currentWorkPackage: { value: "Fix front-end regressions." },
+    currentWorkPackageModule: {
+      moduleName: "Shell",
+      relation: "owned_by"
+    },
+    unknowns: []
+  };
+  const modulesHtml = renderCurrentView(ctx);
+  assert.ok(modulesHtml.includes("Shell"), "modules view should render module names without runtime import errors");
+  assert.ok(modulesHtml.includes("declared"), "modules view should render source pills without runtime import errors");
+
+  ctx.state.activeView = "current-slice";
+  ctx.state.activeSnapshot.detail.views.currentSlice = {
+    currentVersionTarget: { value: "Stabilize the first monitored workflow." },
+    currentStage: { value: "implementation" },
+    currentWorkPackage: { value: "Fix recent-changes rendering." },
+    currentSliceModule: {
+      moduleName: "Shell",
+      relation: "owned_by"
+    },
+    currentSliceGoalLink: "Make the dashboard readable again.",
+    completionImpact: "Restore current-slice confidence.",
+    recentChangeSummaries: [
+      {
+        title: "Fix missing recent entries renderer",
+        summary: "Re-export the shared recent entries renderer.",
+        type: "repo_change_inferred",
+        createdAt: "2026-04-02T13:12:23.527Z"
+      }
+    ]
+  };
+  const currentSliceHtml = renderCurrentView(ctx);
+  assert.ok(currentSliceHtml.includes("Fix missing recent entries renderer"), "current-slice should render recent entries without runtime import errors");
+
+  const filingHtml = renderNewProjectFilingView({
+    renderUsageCallout: () => "",
+    state: {
+      activeSnapshot: {
+        project: {
+          id: "project-b",
+          name: "Project B",
+          rootPath: "D:\\repo\\project-b",
+          onboardingMode: "superpowers",
+          useSuperpowers: true
+        }
+      },
+      workbenchPayload: {
+        workbench: {
+          newProjectDraft: {
+            attachedProjectId: "project-a",
+            projectPath: "D:\\repo\\project-a",
+            projectName: "Project A",
+            oneLineDefinition: "old-definition-marker"
+          }
+        },
+        prompts: {
+          newProject: {
+            gptDraftPrompt: "old-gpt-marker",
+            codexStructurePrompt: "old-codex-marker"
+          }
+        },
+        ownershipGuide: {
+          userConfirmed: [],
+          codexScanned: []
+        }
+      },
+      newProjectWritebackPreview: {
+        preview: {
+          files: [
+            { fileName: "project_brief.json", status: "update", updatedFields: ["old-preview-marker"], sourceKinds: [] }
+          ]
+        }
+      },
+      newProjectWritebackResult: {
+        scan: {
+          summary: "old-result-marker"
+        }
+      },
+      newProjectStructuredInput: "",
+      newProjectStructuredStatus: null
+    }
+  });
+  assert.ok(filingHtml.includes("Project B"), "new-project filing should rebind to the active project name");
+  assert.ok(filingHtml.includes("D:\\repo\\project-b"), "new-project filing should rebind to the active project path");
+  assert.ok(!filingHtml.includes("Project A"), "new-project filing should not leak the previous project name");
+  assert.ok(!filingHtml.includes("old-definition-marker"), "new-project filing should clear stale draft fields from another project");
+  assert.ok(!filingHtml.includes("old-gpt-marker"), "new-project filing should not reuse stale prompts from another project");
+  assert.ok(!filingHtml.includes("old-preview-marker"), "new-project filing should clear stale preview data from another project");
+  assert.ok(!filingHtml.includes("old-result-marker"), "new-project filing should clear stale writeback results from another project");
 }
 
 async function requestJson(serverUrl, route, options = {}) {

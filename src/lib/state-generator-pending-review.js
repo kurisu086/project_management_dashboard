@@ -132,11 +132,16 @@ function buildPendingCleanupPrompt(cleanupItems, conflicts) {
   const lines = [
     "Please clean up project control-state quality without changing business code.",
     "Goal: make repo-side control files easier to read and more actionable in the dashboard.",
+    "Execution mode:",
+    "1. Work inside the monitored repo and directly update the matching files under .codex-control/.",
+    "2. Do not only reply in chat with suggestions. Apply the confirmed cleanup to files first, then summarize what changed.",
+    "3. Keep the edits limited to control files such as project_brief.json, module_map.json, tech_stack.json, game_design.json, version_state.json, decision_log.json, project_state.json, and runs/*.json when needed.",
     "Rules:",
     "1. Rename placeholder validation items into concrete repo-grounded verification targets.",
     "2. Rename placeholder risk items into concrete repo-grounded risk titles and scopes.",
     "3. Review source inconsistencies and separate final-goal declarations from current repo-observed facts.",
     "4. Keep true strategic uncertainties as needs_confirmation instead of forcing a false resolution.",
+    "5. If the user has already answered a pending-review item, write that answer back into the appropriate .codex-control file instead of leaving it only in chat.",
     "",
     "Control-state cleanup items:"
   ];
@@ -159,7 +164,7 @@ function buildPendingCleanupPrompt(cleanupItems, conflicts) {
   lines.push(
     "",
     "Please respond with:",
-    "1. Exact control files to update",
+    "1. Exact .codex-control files you updated",
     "2. Proposed renamed validation/risk items",
     "3. Source inconsistencies that should remain unresolved",
     "4. Minimum follow-up questions only if a true strategic answer is still missing"

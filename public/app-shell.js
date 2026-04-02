@@ -206,7 +206,7 @@ export function renderPendingReviewOverlayContent(ctx) {
       <h3>需要 Codex 清理的控制文件质量问题</h3>
       <p class="inline-subcopy">这部分不是让你拍板产品方向，而是让项目 repo 里的 Codex 去收紧验证项命名、风险命名和控制文件语义。</p>
       <div class="button-row compact-row">
-        <button type="button" class="secondary-action" data-action="copy-payload" data-copy-id="${escapeHtml(codexPromptId)}">复制 Codex 清理提示词</button>
+        <button type="button" class="secondary-action" data-action="copy-payload" data-copy-id="${escapeHtml(codexPromptId)}">复制 Codex 控制文件回写提示词</button>
       </div>
       <div class="data-list">
         ${(pending.cleanupItems || [])
